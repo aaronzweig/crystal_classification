@@ -12,9 +12,8 @@ make pynauty
 sudo pip install .
 ```
 
-For GCN and required packages:
+For GCN and required packages, go to the top folder:
 
 ```bash
-cd ..
 python setup.py install
 ```
