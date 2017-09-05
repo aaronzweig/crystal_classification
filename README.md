@@ -17,3 +17,9 @@ For GCN and required packages, go to the top folder:
 ```bash
 python setup.py install
 ```
+
+Then to run,
+```bash
+cd gcn
+python train_experimental.py
+```
