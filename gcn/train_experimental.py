@@ -10,6 +10,7 @@ from gcn.models import *
 from utils import *
 from models import *
 from layers import *
+from format import *
 
 # Set random seed
 seed = 123
@@ -28,9 +29,13 @@ flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matri
 flags.DEFINE_integer('early_stopping', 100, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_integer('max_vertices', 30, 'Maximum size of possible graphs')
 flags.DEFINE_integer('additional_features', 1, 'Features beyond just the identity matrix')
+flags.DEFINE_string('dataset', "mutag", 'Name of dataset to load')
+
+if FLAGS.dataset == "mutag":
+    read_func = read_mutag
 
 # Load data
-A, X, labels, train_mask, val_mask, test_mask = load_global_data(FLAGS.max_vertices)
+A, X, labels, train_mask, val_mask, test_mask = load_global_data(FLAGS.max_vertices, read_func)
 
 model_func = GlobalGCN
 

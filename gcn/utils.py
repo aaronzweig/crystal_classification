@@ -5,8 +5,6 @@ import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 
-from format import read
-
 
 def parse_index_file(filename):
     """Parse index file."""
@@ -73,8 +71,8 @@ def load_data(dataset_str):
 
     return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
 
-def load_global_data(max_v):
-    As, Xs, y = read(max_v)
+def load_global_data(max_v, read_func):
+    As, Xs, y = read_func(max_v)
     As = [np.asarray(preprocess_adj(A).todense()) for A in As]
     Xs = [np.asarray(X) for X in Xs]
 
@@ -84,8 +82,6 @@ def load_global_data(max_v):
     X = np.transpose(X, axes=(2, 0, 1))
 
     count = y.shape[0]
-    mask = np.ones(count)
-    #train_mask = val_mask = test_mask = np.array(mask, dtype=np.bool)
     train_mask = np.random.choice(2, count, p=[0.2, 0.8])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)

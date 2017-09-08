@@ -8,7 +8,7 @@ def clean(L):
 def add(a,b,dic):
 	dic[a] = dic.get(a, []) + [b]
 
-def read(numv):
+def read_mutag(numv):
 	As = []
 	Xs = []
 	Cs = np.zeros((188, 2))
