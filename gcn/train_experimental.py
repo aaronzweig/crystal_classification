@@ -27,24 +27,22 @@ flags.DEFINE_float('dropout', 0.2, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.002, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 100, 'Tolerance for early stopping (# of epochs).')
-flags.DEFINE_integer('max_vertices', 30, 'Maximum size of possible graphs')
-flags.DEFINE_integer('additional_features', 1, 'Features beyond just the identity matrix')
+flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
 flags.DEFINE_string('dataset', "mutag", 'Name of dataset to load')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
 
 # Load data
-A, X, labels, train_mask, val_mask, test_mask = load_global_data(FLAGS.max_vertices, read_func)
+A, X, labels, train_mask, val_mask, test_mask, vertex_count, feature_count = load_global_data(read_func)
 
 model_func = GlobalGCN
 
 # Define placeholders
-MAX = FLAGS.max_vertices
-ADD = FLAGS.additional_features
+
 placeholders = {
-    'support': [tf.placeholder(tf.float32, shape = (None, MAX, MAX))],
-    'features': tf.placeholder(tf.float32, shape=(None, MAX, MAX+ADD)),
+    'support': [tf.placeholder(tf.float32, shape = (None, vertex_count, vertex_count))],
+    'features': tf.placeholder(tf.float32, shape=(None, vertex_count, feature_count)),
     'labels': tf.placeholder(tf.float32, shape = (None, 2)),
     'labels_mask': tf.placeholder(tf.float32),
     'dropout': tf.placeholder_with_default(0., shape=()),
@@ -52,7 +50,7 @@ placeholders = {
 }
 
 # Create model
-model = model_func(placeholders, input_dim=FLAGS.max_vertices + FLAGS.additional_features, logging=True)
+model = model_func(placeholders, input_dim=feature_count, logging=True)
 
 # Initialize session
 sess = tf.Session()

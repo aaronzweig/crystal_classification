@@ -212,9 +212,10 @@ class GlobalGraphConvolution(GraphConvolution):
 
         input_dim = self.vars['weights_0'].get_shape().as_list()[0]
         output_dim = self.vars['weights_0'].get_shape().as_list()[1]
+        vertex_count = int(x.get_shape()[1])
         x = tf.reshape(x, [-1, input_dim])
         pre_sup = tf.matmul(x, self.vars['weights_0'], a_is_sparse = True)
-        pre_sup = tf.reshape(pre_sup, [-1, FLAGS.max_vertices, output_dim])
+        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, output_dim])
         output = tf.matmul(self.support[0], pre_sup)
 
         # bias

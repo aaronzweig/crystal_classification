@@ -8,7 +8,10 @@ def clean(L):
 def add(a,b,dic):
 	dic[a] = dic.get(a, []) + [b]
 
-def read_mutag(numv):
+def read_mutag():
+	#hard-coded maximum vertex count specifically for the mutag dataset
+	VERTICES = 30
+
 	As = []
 	Xs = []
 	Cs = np.zeros((188, 2))
@@ -33,16 +36,16 @@ def read_mutag(numv):
 			for j in range(len(row)):
 				add(row[j],col[j],adjacency_dict)
 
-			g = Graph(numv, False, adjacency_dict)
+			g = Graph(VERTICES, False, adjacency_dict)
 			labeling = certificate(g)
 			row = [labeling.index(val) for val in row]
 			col = [labeling.index(val) for val in col]
-			A = csr_matrix((data,(row,col)), shape=(numv, numv), dtype = 'int16')
+			A = csr_matrix((data,(row,col)), shape=(VERTICES, VERTICES), dtype = 'int16')
 
 			row = [labeling.index(val) for val in range(len(V))]
 			col = [0] * len(V)
-			X = csr_matrix((V,(row,col)), shape=(numv, 1), dtype = 'int16')
-			X = hstack((X, identity(numv, dtype='int8', format='csr')), format='csr')
+			X = csr_matrix((V,(row,col)), shape=(VERTICES, 1), dtype = 'int16')
+			X = hstack((X, identity(VERTICES, dtype='int8', format='csr')), format='csr')
 
 			As.append(A.todense())
 			Xs.append(X.todense())
