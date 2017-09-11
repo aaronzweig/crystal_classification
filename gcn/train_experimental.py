@@ -23,15 +23,17 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('epochs', 400, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 64, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 16, 'Number of units in hidden layer 2.')
-flags.DEFINE_float('dropout', 0.2, 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('dropout', 0.01, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.002, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 100, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
-flags.DEFINE_string('dataset', "mutag", 'Name of dataset to load')
+flags.DEFINE_string('dataset', "clintox", 'Name of dataset to load')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
+elif FLAGS.dataset == "clintox":
+    read_func = read_clintox
 
 # Load data
 A, X, labels, train_mask, val_mask, test_mask, vertex_count, feature_count = load_global_data(read_func)

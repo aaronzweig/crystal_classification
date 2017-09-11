@@ -2,6 +2,7 @@ from pynauty import Graph, certificate, autgrp
 import numpy as np
 from scipy.sparse import csr_matrix, hstack, identity
 from rdkit import Chem
+import csv
 
 ##########################################################################
 #Partitally from "Convolutional Networks on Graphs for Learning Molecular Fingerprints"
@@ -79,7 +80,7 @@ def order_canonically(A, X):
 def smiles_to_graph(smiles):
 	mol = Chem.MolFromSmiles(smiles)
 	#mol = Chem.AddHs(mol)
-	A = Chem.GetAdjacencyMatrix(mol)
+	A = Chem.rdmolops.GetAdjacencyMatrix(mol)
 
 	#TODO: add bond features to feature matrix
 	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
@@ -88,9 +89,44 @@ def smiles_to_graph(smiles):
 		atom = mol.GetAtomWithIdx(i)
 		X[i,:] = atom_features(atom)
 
-	X = np.hstack((X, np.identity(X.shape[0])))
-
 	return A, X
+
+def pad(A, X, vertex_count):
+	new_A = np.zeros((vertex_count, vertex_count))
+	new_X = np.zeros((vertex_count, X.shape[1]))
+
+	new_A[:A.shape[0], :A.shape[1]] = A
+	new_X[:X.shape[0], :] = X
+	return new_A, new_X
+
+def read_clintox():
+	#hard-coded maximum vertex count specifically for the clintox dataset
+	VERTICES = 150
+
+	As = []
+	Xs = []
+	Cs = []
+
+	with open("clintox.csv", "rb") as f:
+		reader = csv.reader(f)
+		next(reader, None) #skip header
+		for row in reader:
+			smiles = row[0]
+
+			if Chem.MolFromSmiles(smiles) is not None:
+				A, X = smiles_to_graph(smiles)
+				A, X = order_canonically(A, X)
+				A, X = pad(A, X, VERTICES)
+				X = np.hstack((X, np.identity(VERTICES)))
+				As.append(A)
+				Xs.append(X)
+				Cs.append(int(row[1]))
+
+	C = np.zeros((len(Cs), 2))
+	for i in range(len(Cs)):
+		C[i,Cs[i]] = 1
+
+	return As, Xs, C
 
 
 def read_mutag():
@@ -120,17 +156,15 @@ def read_mutag():
 			C = 1 if C[0] == '1' else 0
 			Cs[i-1,C] = 1
 
-			A = csr_matrix((data,(row,col)), shape=(VERTICES, VERTICES), dtype = 'int16')
+
+			A = csr_matrix((data,(row,col)), dtype = 'int16')
 			row = range(len(V))
 			col = [0] * len(V)
-			X = csr_matrix((V,(row,col)), shape=(VERTICES, 1), dtype = 'int16')
-			X = hstack((X, identity(VERTICES, dtype='int16', format='csr')), format='csr')
+			X = csr_matrix((V,(row,col)), dtype = 'int16')
 
 			A, X = order_canonically(A.todense(), X.todense())
+			A, X = pad(A, X, VERTICES)
+			X = np.hstack((X, np.identity(VERTICES)))
 			As.append(A)
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
-
-A, X = smiles_to_graph('CC')
-
-print A
