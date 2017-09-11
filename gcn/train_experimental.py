@@ -28,7 +28,7 @@ flags.DEFINE_float('learning_rate', 0.002, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 100, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
-flags.DEFINE_string('dataset', "clintox", 'Name of dataset to load')
+flags.DEFINE_string('dataset', "mutag", 'Name of dataset to load')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
@@ -36,7 +36,7 @@ elif FLAGS.dataset == "clintox":
     read_func = read_clintox
 
 # Load data
-A, X, labels, train_mask, val_mask, test_mask, vertex_count, feature_count = load_global_data(read_func)
+A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, vertex_count, feature_count = load_global_data(read_func)
 
 model_func = GlobalGCN
 
@@ -77,14 +77,14 @@ for epoch in range(FLAGS.epochs):
     t = time.time()
     # Construct feed dictionary
 
-    feed_dict = construct_feed_dict(X, [A], labels, train_mask, placeholders)
+    feed_dict = construct_feed_dict(X, [A], y_train, train_mask, placeholders)
     feed_dict.update({placeholders['dropout']: FLAGS.dropout})
 
     # Training step
     outs = sess.run([model.opt_op, model.loss, model.accuracy], feed_dict=feed_dict)
 
     # Validation
-    cost, acc, duration = evaluate(X, A, labels, val_mask, placeholders)
+    cost, acc, duration = evaluate(X, A, y_val, val_mask, placeholders)
     cost_val.append(cost)
 
     # Print results
@@ -99,6 +99,6 @@ for epoch in range(FLAGS.epochs):
 print("Optimization Finished!")
 
 # Testing
-test_cost, test_acc, test_duration = evaluate(X, A, labels, test_mask, placeholders)
+test_cost, test_acc, test_duration = evaluate(X, A, y_test, test_mask, placeholders)
 print("Test set results:", "cost=", "{:.5f}".format(test_cost),
       "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))

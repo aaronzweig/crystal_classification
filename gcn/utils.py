@@ -76,7 +76,7 @@ def load_data(dataset_str):
     return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
 
 def load_global_data(read_func):
-    As, Xs, y = read_func()
+    As, Xs, labels = read_func()
     As = [np.asarray(preprocess_adj(A).todense()) for A in As]
     Xs = [np.asarray(X) for X in Xs]
 
@@ -85,13 +85,21 @@ def load_global_data(read_func):
     X = np.dstack(tuple(Xs))
     X = np.transpose(X, axes=(2, 0, 1))
 
-    count = y.shape[0]
+    count = labels.shape[0]
     train_mask = np.random.choice(2, count, p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)
+    #TODO: Have separate testing data for final evaluation
     val_mask = test_mask = np.array(val_mask, dtype=np.bool)
 
-    return A, X, y, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
+    y_train = np.zeros(labels.shape)
+    y_val = np.zeros(labels.shape)
+    y_test = np.zeros(labels.shape)
+    y_train[train_mask, :] = labels[train_mask, :]
+    y_val[val_mask, :] = labels[val_mask, :]
+    y_test[test_mask, :] = labels[test_mask, :]
+
+    return A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
 
 def sparse_to_tuple(sparse_mx):
     """Convert sparse matrix to tuple representation."""
