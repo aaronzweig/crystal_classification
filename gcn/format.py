@@ -1,56 +1,56 @@
 from pynauty import Graph, certificate, autgrp
 import numpy as np
 from scipy.sparse import csr_matrix, hstack, identity
-# from rdkit import Chem
+from rdkit import Chem
 
 ##########################################################################
-# Partitally from "Convolutional Networks on Graphs for Learning Molecular Fingerprints"
+#Partitally from "Convolutional Networks on Graphs for Learning Molecular Fingerprints"
 
-# def one_of_k_encoding_unk(x, allowable_set):
-#     """Maps inputs not in the allowable set to the last element."""
-#     if x not in allowable_set:
-#         x = allowable_set[-1]
-#     return map(lambda s: x == s, allowable_set)
+def one_of_k_encoding_unk(x, allowable_set):
+    """Maps inputs not in the allowable set to the last element."""
+    if x not in allowable_set:
+        x = allowable_set[-1]
+    return map(lambda s: x == s, allowable_set)
 
-# def atom_features(atom):
-# 	recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na',
-# 							'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
-# 							'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
-# 							'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
-# 							'Cr', 'Pt', 'Hg', 'Pb', 'Unknown']
-# 	features = [atom.GetDegree(),
-#     			atom.GetTotalNumHs(),
-#     			atom.GetImplicitValence(),
-#     			atom.GetFormalCharge(),
-#                 atom.GetChiralTag(),
-#                 atom.GetHybridization(),
-#                 atom.GetNumExplicitHs(),
-#     			atom.GetIsAromatic()]
+def atom_features(atom):
+	recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na',
+							'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
+							'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
+							'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
+							'Cr', 'Pt', 'Hg', 'Pb', 'Unknown']
+	features = [atom.GetDegree(),
+    			atom.GetTotalNumHs(),
+    			atom.GetImplicitValence(),
+    			atom.GetFormalCharge(),
+                atom.GetChiralTag(),
+                atom.GetHybridization(),
+                atom.GetNumExplicitHs(),
+    			atom.GetIsAromatic()]
 
-# 	features += one_of_k_encoding_unk(atom.GetSymbol(), recognized_elements)
-# 	return np.array(features)
+	features += one_of_k_encoding_unk(atom.GetSymbol(), recognized_elements)
+	return np.array(features)
 
-# def bond_features(bond):
-#     bt = bond.GetBondType()
-#     return np.array([bt == Chem.rdchem.BondType.SINGLE,
-#                      bt == Chem.rdchem.BondType.DOUBLE,
-#                      bt == Chem.rdchem.BondType.TRIPLE,
-#                      bt == Chem.rdchem.BondType.AROMATIC,
-#                      bond.GetIsConjugated(),
-#                      bond.IsInRing()])
+def bond_features(bond):
+    bt = bond.GetBondType()
+    return np.array([bt == Chem.rdchem.BondType.SINGLE,
+                     bt == Chem.rdchem.BondType.DOUBLE,
+                     bt == Chem.rdchem.BondType.TRIPLE,
+                     bt == Chem.rdchem.BondType.AROMATIC,
+                     bond.GetIsConjugated(),
+                     bond.IsInRing()])
 
-# def num_atom_features():
-#     # Return length of feature vector using a very simple molecule.
-#     m = Chem.MolFromSmiles('CC')
-#     alist = m.GetAtoms()
-#     a = alist[0]
-#     return len(atom_features(a))
+def num_atom_features():
+    # Return length of feature vector using a very simple molecule.
+    m = Chem.MolFromSmiles('CC')
+    alist = m.GetAtoms()
+    a = alist[0]
+    return len(atom_features(a))
 
-# def num_bond_features():
-#     # Return length of feature vector using a very simple molecule.
-#     simple_mol = Chem.MolFromSmiles('CC')
-#     Chem.SanitizeMol(simple_mol)
-#     return len(bond_features(simple_mol.GetBonds()[0]))
+def num_bond_features():
+    # Return length of feature vector using a very simple molecule.
+    simple_mol = Chem.MolFromSmiles('CC')
+    Chem.SanitizeMol(simple_mol)
+    return len(bond_features(simple_mol.GetBonds()[0]))
 
 
 ##########################################################################
@@ -76,21 +76,21 @@ def order_canonically(A, X):
 
 	return new_A, new_X
 
-# def smiles_to_graph(smiles):
-# 	mol = Chem.MolFromSmiles(smiles)
-# 	mol = Chem.AddHs(mol)
-# 	A = mol.GetAdjacencyMatrix()
+def smiles_to_graph(smiles):
+	mol = Chem.MolFromSmiles(smiles)
+	#mol = Chem.AddHs(mol)
+	A = Chem.GetAdjacencyMatrix(mol)
 
-# 	#TODO: add bond features to feature matrix
-# 	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
+	#TODO: add bond features to feature matrix
+	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
 
-# 	for i in range(mol.GetNumAtoms()):
-# 		atom = mol.GetAtomWithIdx(i)
-# 		X[i,:] = atom_features(atom)
+	for i in range(mol.GetNumAtoms()):
+		atom = mol.GetAtomWithIdx(i)
+		X[i,:] = atom_features(atom)
 
-# 	X = np.hstack(X, np.identity(X.shape[0]))
+	X = np.hstack((X, np.identity(X.shape[0])))
 
-# 	return A, X
+	return A, X
 
 
 def read_mutag():
@@ -130,3 +130,7 @@ def read_mutag():
 			As.append(A)
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
+
+A, X = smiles_to_graph('CC')
+
+print A
