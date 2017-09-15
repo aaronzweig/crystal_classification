@@ -223,3 +223,57 @@ class GlobalGraphConvolution(GraphConvolution):
             output += self.vars['bias']
 
         return self.act(output)
+
+class GenerativeGraphConvolution(Layer):
+    """Graph convolution layer."""
+    def __init__(self, input_dim, output_dim, placeholders, dropout=0.,
+                 sparse_inputs=False, act=tf.nn.relu, bias=False,
+                 featureless=False, **kwargs):
+        super(GenerativeGraphConvolution, self).__init__(**kwargs)
+
+        if dropout:
+            self.dropout = placeholders['dropout']
+        else:
+            self.dropout = 0.
+
+        self.act = act
+        self.adj_norm = placeholders['adj_norm']
+        self.sparse_inputs = sparse_inputs
+        self.featureless = featureless
+        self.bias = bias
+
+        # helper variable for sparse dropout
+        self.num_features_nonzero = placeholders['num_features_nonzero']
+
+        with tf.variable_scope(self.name + '_vars'):
+            self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
+            if self.bias:
+                self.vars['bias'] = zeros([output_dim], name='bias')
+
+        if self.logging:
+            self._log_vars()
+
+    def _call(self, inputs):
+        x = inputs
+
+        # dropout
+        if self.sparse_inputs:
+            x = sparse_dropout(x, 1-self.dropout, self.num_features_nonzero)
+        else:
+            x = tf.nn.dropout(x, 1-self.dropout)
+
+        input_dim = self.vars['weights'].get_shape().as_list()[0]
+        output_dim = self.vars['weights'].get_shape().as_list()[1]
+        vertex_count = int(self.adj_norm.get_shape()[1])
+
+        x = tf.reshape(x, [(vertex_count-1) * vertex_count, input_dim])
+        pre_sup = tf.matmul(x, self.vars['weights'])
+        pre_sup = tf.reshape(pre_sup, [vertex_count-1, vertex_count, output_dim])
+
+        output = tf.matmul(self.adj_norm, pre_sup)
+
+        # bias
+        if self.bias:
+            output += self.vars['bias']
+
+        return self.act(output)

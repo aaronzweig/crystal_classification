@@ -24,57 +24,6 @@ def sample_mask(idx, l):
     mask[idx] = 1
     return np.array(mask, dtype=np.bool)
 
-
-def load_data(dataset_str):
-    """Load data."""
-    names = ['x', 'y', 'tx', 'ty', 'allx', 'ally', 'graph']
-    objects = []
-    for i in range(len(names)):
-        with open("data/ind.{}.{}".format(dataset_str, names[i]), 'rb') as f:
-            if sys.version_info > (3, 0):
-                objects.append(pkl.load(f, encoding='latin1'))
-            else:
-                objects.append(pkl.load(f))
-
-    x, y, tx, ty, allx, ally, graph = tuple(objects)
-    test_idx_reorder = parse_index_file("data/ind.{}.test.index".format(dataset_str))
-    test_idx_range = np.sort(test_idx_reorder)
-
-    if dataset_str == 'citeseer':
-        # Fix citeseer dataset (there are some isolated nodes in the graph)
-        # Find isolated nodes, add them as zero-vecs into the right position
-        test_idx_range_full = range(min(test_idx_reorder), max(test_idx_reorder)+1)
-        tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
-        tx_extended[test_idx_range-min(test_idx_range), :] = tx
-        tx = tx_extended
-        ty_extended = np.zeros((len(test_idx_range_full), y.shape[1]))
-        ty_extended[test_idx_range-min(test_idx_range), :] = ty
-        ty = ty_extended
-
-    features = sp.vstack((allx, tx)).tolil()
-    features[test_idx_reorder, :] = features[test_idx_range, :]
-    adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
-
-    labels = np.vstack((ally, ty))
-    labels[test_idx_reorder, :] = labels[test_idx_range, :]
-
-    idx_test = test_idx_range.tolist()
-    idx_train = range(len(y))
-    idx_val = range(len(y), len(y)+500)
-
-    train_mask = sample_mask(idx_train, labels.shape[0])
-    val_mask = sample_mask(idx_val, labels.shape[0])
-    test_mask = sample_mask(idx_test, labels.shape[0])
-
-    y_train = np.zeros(labels.shape)
-    y_val = np.zeros(labels.shape)
-    y_test = np.zeros(labels.shape)
-    y_train[train_mask, :] = labels[train_mask, :]
-    y_val[val_mask, :] = labels[val_mask, :]
-    y_test[test_mask, :] = labels[test_mask, :]
-
-    return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
-
 def load_global_data(read_func):
     As, Xs, labels = read_func()
     As = [np.asarray(preprocess_adj(A).todense()) for A in As]
@@ -100,6 +49,32 @@ def load_global_data(read_func):
     y_test[test_mask, :] = labels[test_mask, :]
 
     return A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
+
+def load_generative_data(read_func):
+    As, Xs = read_func()
+    batch = len(As)
+    dim = As[0].shape[0]
+    feature_count = Xs[0].shape[1]
+
+    A = np.zeros((batch, dim, dim))
+    A_norm = np.zeros((batch, dim-1, dim, dim))
+    X = np.zeros((batch, dim-1, dim, feature_count))
+
+    for i in range(batch):
+        adj = As[i]
+        feature = Xs[i]
+        A[i,:,:] = adj
+        for j in range(1, dim):
+            adj_norm = preprocess_adj(adj[:j,:j]).todense()
+            A_norm[i,j-1,:j,:j] = adj_norm
+            X[i,j-1,:,:] = feature
+
+    train_mask = np.random.choice(2, batch, p=[FLAGS.validation, 1 - FLAGS.validation])
+    val_mask = 1 - train_mask
+    train_mask = np.array(train_mask, dtype=np.bool)
+    val_mask = np.array(val_mask, dtype=np.bool)
+
+    return A, A_norm, X, train_mask, val_mask, dim, feature_count
 
 def sparse_to_tuple(sparse_mx):
     """Convert sparse matrix to tuple representation."""
@@ -156,25 +131,12 @@ def construct_feed_dict(features, support, labels, labels_mask, placeholders):
     feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
     return feed_dict
 
+def construct_generative_feed_dict(features, adj, adj_norm, placeholders):
+    """Construct feed dictionary."""
+    feed_dict = dict()
+    feed_dict.update({placeholders['features']: features})
+    feed_dict.update({placeholders['adj']: adj})
+    feed_dict.update({placeholders['adj_norm']: adj_norm})
+    feed_dict.update({placeholders['num_features_nonzero']: np.asarray(features.shape)})
+    return feed_dict
 
-def chebyshev_polynomials(adj, k):
-    """Calculate Chebyshev polynomials up to order k. Return a list of sparse matrices (tuple representation)."""
-    print("Calculating Chebyshev polynomials up to order {}...".format(k))
-
-    adj_normalized = normalize_adj(adj)
-    laplacian = sp.eye(adj.shape[0]) - adj_normalized
-    largest_eigval, _ = eigsh(laplacian, 1, which='LM')
-    scaled_laplacian = (2. / largest_eigval[0]) * laplacian - sp.eye(adj.shape[0])
-
-    t_k = list()
-    t_k.append(sp.eye(adj.shape[0]))
-    t_k.append(scaled_laplacian)
-
-    def chebyshev_recurrence(t_k_minus_one, t_k_minus_two, scaled_lap):
-        s_lap = sp.csr_matrix(scaled_lap, copy=True)
-        return 2 * s_lap.dot(t_k_minus_one) - t_k_minus_two
-
-    for i in range(2, k+1):
-        t_k.append(chebyshev_recurrence(t_k[-1], t_k[-2], scaled_laplacian))
-
-    return sparse_to_tuple(t_k)

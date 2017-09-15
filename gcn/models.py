@@ -2,10 +2,10 @@ from gcn.layers import *
 from gcn.metrics import *
 
 from layers import *
+from metrics import *
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -210,3 +210,63 @@ class GlobalGCN(GCN):
         self.layers.append(Mean(1))
 
 ####################################################
+
+class GenerativeGCN(Model):
+    def __init__(self, placeholders, input_dim, vertex_count, **kwargs):
+        super(GenerativeGCN, self).__init__(**kwargs)
+
+        self.inputs = placeholders['features']
+        self.input_dim = input_dim
+        self.vertex_count = vertex_count
+
+        #WHAT WILL THIS BE REALLY?
+        self.output_dim = 1
+        self.placeholders = placeholders
+
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
+
+        self.build()
+
+    def _loss(self):
+        for var in self.layers[0].vars.values():
+            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
+
+        out_mask = np.tril(np.ones((self.vertex_count-1, self.vertex_count), dtype=np.bool_), 0)
+        outputs = tf.boolean_mask(tf.squeeze(self.outputs), out_mask)
+        label_mask = np.tril(np.ones((self.vertex_count, self.vertex_count), dtype=np.bool_), -1)
+        labels = tf.boolean_mask(tf.squeeze(self.placeholders['adj']), label_mask)
+        self.loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=outputs, labels=labels))
+
+    def _accuracy(self):
+        out_mask = np.tril(np.ones((self.vertex_count-1, self.vertex_count), dtype=np.bool_), 0)
+        outputs = tf.round(tf.sigmoid(tf.boolean_mask(tf.squeeze(self.outputs), out_mask)))
+        self.pred = outputs
+        label_mask = np.tril(np.ones((self.vertex_count, self.vertex_count), dtype=np.bool_), -1)
+        labels = tf.boolean_mask(tf.squeeze(self.placeholders['adj']), label_mask)
+        correct_prediction = tf.equal(outputs, labels)
+        accuracy_all = tf.cast(correct_prediction, tf.float32)
+        self.accuracy = tf.reduce_mean(accuracy_all)
+
+    def _build(self):
+
+        self.layers.append(GenerativeGraphConvolution(input_dim=self.input_dim,
+                                            output_dim=FLAGS.hidden1,
+                                            placeholders=self.placeholders,
+                                            act=tf.nn.relu,
+                                            dropout=True,
+                                            logging=self.logging))
+
+        self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden1,
+                                            output_dim=FLAGS.hidden2,
+                                            placeholders=self.placeholders,
+                                            act=tf.nn.relu,
+                                            dropout=True,
+                                            logging=self.logging))
+        self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden2,
+                                            output_dim=self.output_dim,
+                                            placeholders=self.placeholders,
+                                            act=lambda x: x,
+                                            dropout=True,
+                                            logging=self.logging))
+
+
