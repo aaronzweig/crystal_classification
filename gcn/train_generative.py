@@ -21,10 +21,10 @@ tf.set_random_seed(seed)
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('epochs', 900, 'Number of epochs to train.')
-flags.DEFINE_integer('hidden1', 100, 'Number of units in hidden layer 1.')
+flags.DEFINE_integer('hidden1', 54, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 32, 'Number of units in hidden layer 2.')
-flags.DEFINE_float('dropout', 0.01, 'Dropout rate (1 - keep probability).')
-flags.DEFINE_float('learning_rate', 0.009, 'Initial learning rate.')
+flags.DEFINE_float('dropout', 0.00, 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('learning_rate', 0.02, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 100, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')

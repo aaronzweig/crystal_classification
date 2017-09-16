@@ -179,7 +179,7 @@ def read_ego():
 	Xs = []
 
 	for _ in range(batch):
-		G = nx.fast_gnp_random_graph(dim, 0.1)
+		G = nx.fast_gnp_random_graph(dim, 0)
 		A = nx.to_numpy_matrix(G)
 		idx = np.random.randint(1,dim)
 		A[idx, :] = A[:, idx] = 1
