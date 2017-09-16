@@ -171,21 +171,19 @@ def read_mutag():
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
 
-def read_eco():
-	dim = 6
-	batch = 200
+def read_ego():
+	dim = 10
+	batch = 100
 
 	As = []
 	Xs = []
 
 	for _ in range(batch):
-		G = nx.fast_gnp_random_graph(dim, 0)
+		G = nx.fast_gnp_random_graph(dim, 0.1)
 		A = nx.to_numpy_matrix(G)
 		idx = np.random.randint(1,dim)
-		# A[idx, :] = A[:, idx] = 1
-		# A[idx, idx] = 0
-		A[0, :] = A[:, 0] = 1
-		A[0, 0] = 0
+		A[idx, :] = A[:, idx] = 1
+		A[idx, idx] = 0
 		X = np.identity(dim)
 
 
