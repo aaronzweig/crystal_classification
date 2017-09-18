@@ -219,8 +219,7 @@ class GenerativeGCN(Model):
         self.input_dim = input_dim
         self.vertex_count = vertex_count
 
-        #WHAT WILL THIS BE REALLY?
-        self.output_dim = 1
+        self.output_dim = 2
         self.placeholders = placeholders
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
@@ -228,24 +227,30 @@ class GenerativeGCN(Model):
         self.build()
 
     def _loss(self):
+
+
+        adj_norm = self.placeholders['adj_norm']
+        diag = tf.diag_part(adj_norm)
+        count = tf.count_nonzero(diag)
+        count = tf.cast(count, tf.int32)
+        label = self.placeholders['adj']
+        self.connections = self.outputs[:,0]
+        connections = tf.squeeze(self.connections[:count])
+        self.endbit = tf.reduce_mean(self.outputs[:,1])
+
+
+        # self.loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
+        # self.loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=self.endbit, labels=label[-1])
+        # self.loss = tf.divide(self.loss, tf.cast(tf.add(count, tf.constant(1, tf.int32)), tf.float32))
+        self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
+
         for var in self.layers[0].vars.values():
             self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
 
-        out_mask = np.tril(np.ones((self.vertex_count-1, self.vertex_count), dtype=np.bool_), 0)
-        outputs = tf.boolean_mask(tf.squeeze(self.outputs), out_mask)
-        label_mask = np.tril(np.ones((self.vertex_count, self.vertex_count), dtype=np.bool_), -1)
-        labels = tf.boolean_mask(tf.squeeze(self.placeholders['adj']), label_mask)
-        self.loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=outputs, labels=labels))
+        self.data = [adj_norm, count, label[:count], connections, self.endbit, label[-1]]
 
     def _accuracy(self):
-        out_mask = np.tril(np.ones((self.vertex_count-1, self.vertex_count), dtype=np.bool_), 0)
-        outputs = tf.round(tf.sigmoid(tf.boolean_mask(tf.squeeze(self.outputs), out_mask)))
-        self.pred = outputs
-        label_mask = np.tril(np.ones((self.vertex_count, self.vertex_count), dtype=np.bool_), -1)
-        labels = tf.boolean_mask(tf.squeeze(self.placeholders['adj']), label_mask)
-        correct_prediction = tf.equal(outputs, labels)
-        accuracy_all = tf.cast(correct_prediction, tf.float32)
-        self.accuracy = tf.reduce_mean(accuracy_all)
+        self.accuracy = 1
 
     def _build(self):
 
@@ -254,7 +259,6 @@ class GenerativeGCN(Model):
                                             placeholders=self.placeholders,
                                             act=tf.nn.relu,
                                             dropout=True,
-                                            bias = True,
                                             logging=self.logging))
 
         self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden1,

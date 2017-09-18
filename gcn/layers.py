@@ -266,10 +266,9 @@ class GenerativeGraphConvolution(Layer):
         output_dim = self.vars['weights'].get_shape().as_list()[1]
         vertex_count = int(self.adj_norm.get_shape()[1])
 
-        x = tf.reshape(x, [(vertex_count-1) * vertex_count, input_dim])
+        #x = tf.reshape(x, [(vertex_count-1) * vertex_count, input_dim])
         pre_sup = tf.matmul(x, self.vars['weights'])
-        pre_sup = tf.reshape(pre_sup, [vertex_count-1, vertex_count, output_dim])
-
+        #pre_sup = tf.reshape(pre_sup, [vertex_count-1, vertex_count, output_dim])
         output = tf.matmul(self.adj_norm, pre_sup)
 
         # bias

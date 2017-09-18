@@ -1,8 +1,11 @@
 from __future__ import division
 from __future__ import print_function
+import sys
 
 import time
 import tensorflow as tf
+
+import matplotlib.pyplot as plt
 
 from gcn.utils import *
 from gcn.models import *
@@ -20,11 +23,11 @@ tf.set_random_seed(seed)
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('epochs', 900, 'Number of epochs to train.')
-flags.DEFINE_integer('hidden1', 54, 'Number of units in hidden layer 1.')
+flags.DEFINE_integer('epochs', 600, 'Number of epochs to train.')
+flags.DEFINE_integer('hidden1', 80, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 32, 'Number of units in hidden layer 2.')
-flags.DEFINE_float('dropout', 0.00, 'Dropout rate (1 - keep probability).')
-flags.DEFINE_float('learning_rate', 0.02, 'Initial learning rate.')
+flags.DEFINE_float('dropout', 0.01, 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('learning_rate', 0.0001, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 100, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
@@ -45,15 +48,17 @@ model_func = GenerativeGCN
 # Define placeholders
 
 placeholders = {
-    'adj': tf.placeholder(tf.float32, shape = (vertex_count, vertex_count)),
-    'adj_norm': tf.placeholder(tf.float32, shape = (vertex_count-1, vertex_count, vertex_count)),
-    'features': tf.placeholder(tf.float32, shape=(vertex_count-1, vertex_count, feature_count)),
+    'adj': tf.placeholder(tf.float32, shape = (vertex_count + 1)),
+    'adj_norm': tf.placeholder(tf.float32, shape = (vertex_count, vertex_count)),
+    'features': tf.placeholder(tf.float32, shape=(vertex_count, feature_count)),
     'dropout': tf.placeholder_with_default(0., shape=(), name = "drop"),
     'num_features_nonzero': tf.placeholder(tf.int32, name = "help")  # helper variable for sparse dropout
 }
 
 # Create model
 model = model_func(placeholders, input_dim=feature_count, vertex_count = vertex_count, logging=True)
+
+
 
 # Initialize session
 sess = tf.Session()
@@ -65,10 +70,9 @@ def evaluate(X, A, A_norm, mask, placeholders):
     accuracies = []
     for i in np.where(mask)[0]:
         feed_dict_val = construct_generative_feed_dict(X[i], A[i], A_norm[i], placeholders)
-        outs_val = sess.run([model.loss, model.accuracy], feed_dict=feed_dict_val)
+        outs_val = sess.run([model.loss, model.data], feed_dict=feed_dict_val)
         outs.append(outs_val[0])
-        accuracies.append(outs_val[1])
-    return np.mean(np.array(outs)), np.mean(np.array(accuracies))
+    return np.mean(np.array(outs))
 
 # Init variables
 sess.run(tf.global_variables_initializer())
@@ -87,10 +91,10 @@ for epoch in range(FLAGS.epochs):
         outs_list.append(outs[1])
     outs = np.mean(np.array(outs_list))
 
-    cost, accuracy = evaluate(X, A, A_norm, val_mask, placeholders)
+    cost = evaluate(X, A, A_norm, val_mask, placeholders)
     cost_val.append(cost)
 
-    print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs), "val_loss=", "{:.5f}".format(cost), "val_acc=", "{:.5f}".format(accuracy))
+    print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs), "val_loss=", "{:.5f}".format(cost))
 
     if epoch > FLAGS.early_stopping and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping+1):-1]):
         print("Early stopping...")
@@ -101,24 +105,25 @@ print("Optimization Finished!")
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-
-for j in np.where(val_mask)[0][:12]:
-    A_partial = np.zeros((vertex_count, vertex_count))
-    A_partial_norm = np.zeros((vertex_count-1, vertex_count, vertex_count))
-    #A_partial_norm = A_norm[j]
+def generate():
+    partial = np.zeros((vertex_count, vertex_count))
+    partial_norm = np.zeros((vertex_count, vertex_count))
+    dummy = np.zeros(vertex_count+1)
     for i in range(1,vertex_count):
-        A_partial_norm[i-1,:i,:i] = preprocess_adj(A_partial[:i,:i]).todense()
-        feed_dict = construct_generative_feed_dict(X[j], A_partial, A_partial_norm, placeholders)
-        outs = sess.run([model.outputs], feed_dict=feed_dict)
-        labels = sigmoid(outs[0][i-1].flatten())
+        partial_norm[:i,:i] = preprocess_adj(partial[:i,:i]).todense()
+        feed_dict = construct_generative_feed_dict(X[0], dummy, partial_norm, placeholders)
+        connections, endbit = sess.run([model.connections, model.endbit], feed_dict=feed_dict)
+        labels = sigmoid(connections)[:i]
         labels = [np.random.choice(2, p = [1-k, k]) for k in labels]
-        A_partial[i,:i] = labels[:i]
-        A_partial[:i,i] = labels[:i]
-    print("compare")
-    #print(A[j])
-    print(A_partial)
+        partial[i,:i] = labels
+        partial[:i,i] = labels
+        endbit = sigmoid(endbit)
+        end = np.random.choice(2, p = [1-endbit, endbit])
+        # if end == 1:
+        #     break
+    G = nx.from_numpy_matrix(partial)
+    nx.draw_networkx(G)
+    plt.show()
 
-# # Testing
-# test_cost, test_acc, test_duration = evaluate(X, A, A_norm, test_mask, placeholders)
-# print("Test set results:", "cost=", "{:.5f}".format(test_cost),
-#       "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))
+for i in range(10):
+    generate()

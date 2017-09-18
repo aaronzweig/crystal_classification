@@ -5,6 +5,8 @@ import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 
+import format
+
 import tensorflow as tf
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -51,23 +53,93 @@ def load_global_data(read_func):
     return A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
 
 def load_generative_data(read_func):
-    As, Xs = read_func()
+    As, Xs, dim = read_func()
     batch = len(As)
-    dim = As[0].shape[0]
     feature_count = Xs[0].shape[1]
 
-    A = np.zeros((batch, dim, dim))
-    A_norm = np.zeros((batch, dim-1, dim, dim))
-    X = np.zeros((batch, dim-1, dim, feature_count))
+    total = 0
+    for i in range(batch):
+        adj = As[i]
+        total += adj.shape[0]-1
 
+    A = np.zeros((total, dim + 1))
+    A_norm = np.zeros((total, dim, dim))
+    X = np.zeros((total, dim, feature_count))
+
+    idx = 0
     for i in range(batch):
         adj = As[i]
         feature = Xs[i]
-        A[i,:,:] = adj
-        for j in range(1, dim):
+        localdim = adj.shape[0]
+        for j in range(1, localdim):
             adj_norm = preprocess_adj(adj[:j,:j]).todense()
-            A_norm[i,j-1,:j,:j] = adj_norm
-            X[i,j-1,:,:] = feature
+            label = np.zeros(dim + 1)
+            label[:localdim] = adj[j]
+            if j == localdim-1:
+                label[-1] = 1 #bit to denote end of graph
+            A_norm[idx,:j,:j] = adj_norm
+            X[idx,:,:] = feature
+            A[idx,:] = label
+            idx += 1
+
+    train_mask = np.random.choice(2, batch, p=[FLAGS.validation, 1 - FLAGS.validation])
+    val_mask = 1 - train_mask
+    train_mask = np.array(train_mask, dtype=np.bool)
+    val_mask = np.array(val_mask, dtype=np.bool)
+
+    return A, A_norm, X, train_mask, val_mask, dim, feature_count
+
+
+def load_generative_edge_data(read_func):
+    Gs, Xs = read_func()
+    batch = len(Gs)
+    dim = Gs[0].number_of_nodes()
+    feature_count = Xs[0].shape[1] + 1
+
+    A_list = []
+    A_norm_list = []
+    X_list = []
+
+    def load(A_list, A_norm_list, X_list, A, H, feature, dim):
+        adj = nx.adjacency_matrix(H).todense()
+        dense_adj = np.zeros((dim, dim))
+        dense_adj[:adj.shape[0], :adj.shape[1]] = adj
+        A_list.append(A)
+        A_norm_list.append(dense_adj)
+        X_list.append(feature)
+
+    for i in range(batch):
+        G = Gs[i]
+
+        H = nx.null_graph()
+        for n in range(dim):
+            feature = np.hstack(Xs[i], np.zeros((dim, 1)))
+            feature[-1][n] = 1
+            H.add_node(n)
+            low_neighbors = G.neighbors(n)
+            low_neighbors = filter(lambda x: x < n, low_neighbors)
+            
+            while len(low_neighbors) != 0:
+                A = np.zeros(dim)
+                A[low_neighbors] = 1
+                A /= 1.0 * np.sum(A)
+                load(A_list, A_norm_list, X_list, A, H, feature, dim)
+
+                m = low_neighbors.pop()
+                H.add_edge(n,m)
+
+            A = np.zeros(dim)
+            A[n] = 1
+            load(A_list, A_norm_list, X_list, A, H, feature, dim)
+
+
+
+
+    A = np.stack(tuple(A_list))
+    A_norm = np.dstack(tuple(A_norm_list))
+    A_norm = np.transpose(A_norm, axes=(2, 0, 1))
+    X = np.dstack(tuple(X_list))
+    X = np.transpose(X, axes=(2, 0, 1))
 
     train_mask = np.random.choice(2, batch, p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
