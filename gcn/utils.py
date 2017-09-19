@@ -82,7 +82,7 @@ def load_generative_data(read_func):
             A[idx,:] = label
             idx += 1
 
-    train_mask = np.random.choice(2, batch, p=[FLAGS.validation, 1 - FLAGS.validation])
+    train_mask = np.random.choice(2, total, p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)
     val_mask = np.array(val_mask, dtype=np.bool)

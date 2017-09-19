@@ -228,26 +228,31 @@ class GenerativeGCN(Model):
 
     def _loss(self):
 
+        def fn(x):
+            adj_norm = x[0]
+            diag = tf.diag_part(adj_norm)
+            count = tf.count_nonzero(diag)
+            count = tf.cast(count, tf.int32)
+            label = x[1]
+            outputs = x[2]
+            all_connections = outputs[:,0]
+            connections = tf.squeeze(all_connections[:count])
+            endbit = tf.reduce_mean(outputs[:,1])
+            # self.loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
+            # self.loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=self.endbit, labels=label[-1])
+            # self.loss = tf.divide(self.loss, tf.cast(tf.add(count, tf.constant(1, tf.int32)), tf.float32))
+            loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
+            return [loss, all_connections, endbit]
 
-        adj_norm = self.placeholders['adj_norm']
-        diag = tf.diag_part(adj_norm)
-        count = tf.count_nonzero(diag)
-        count = tf.cast(count, tf.int32)
-        label = self.placeholders['adj']
-        self.connections = self.outputs[:,0]
-        connections = tf.squeeze(self.connections[:count])
-        self.endbit = tf.reduce_mean(self.outputs[:,1])
-
-
-        # self.loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
-        # self.loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=self.endbit, labels=label[-1])
-        # self.loss = tf.divide(self.loss, tf.cast(tf.add(count, tf.constant(1, tf.int32)), tf.float32))
-        self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
+        self.loss, self.connections, self.endbit = tf.map_fn(fn, [self.placeholders['adj_norm'], self.placeholders['adj'], self.outputs])
+        self.loss = tf.reduce_mean(self.loss)
+        self.connections = tf.squeeze(self.connections)
+        self.endbit = tf.squeeze(self.endbit)
 
         for var in self.layers[0].vars.values():
             self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
 
-        self.data = [adj_norm, count, label[:count], connections, self.endbit, label[-1]]
+        self.data = []
 
     def _accuracy(self):
         self.accuracy = 1

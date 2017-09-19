@@ -5,6 +5,9 @@ from rdkit import Chem
 import csv
 import networkx as nx
 
+import tensorflow as tf
+flags = tf.app.flags
+FLAGS = flags.FLAGS
 
 ##########################################################################
 #Partitally from "Convolutional Networks on Graphs for Learning Molecular Fingerprints"
@@ -171,15 +174,52 @@ def read_mutag():
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
 
-def read_ego():
-	dim = 9
+def read_star():
+	dim = FLAGS.max_dim
+	batch = 100
+
+	As = []
+	Xs = []
+
+	for i in range(batch):
+		A = np.zeros((dim, dim))
+		idx = np.random.randint(A.shape[0])
+		A[idx, :] = A[:, idx] = 1
+		A[idx, idx] = 0
+
+		X = np.identity(dim)
+		As.append(A)
+		Xs.append(X)
+
+	return As, Xs, dim
+
+def read_ring():
+	dim = FLAGS.max_dim
 	batch = 100
 
 	As = []
 	Xs = []
 
 	for _ in range(batch):
-		# G = nx.fast_gnp_random_graph(np.random.randint(3,dim+1), 0)
+		G = nx.cycle_graph(dim)
+		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
+		G = nx.relabel_nodes(G, mapping)
+		A = nx.to_numpy_matrix(G)
+
+		X = np.identity(dim)
+		As.append(A)
+		Xs.append(X)
+
+	return As, Xs, dim
+
+def read_ego():
+	dim = FLAGS.max_dim
+	batch = 300
+
+	As = []
+	Xs = []
+
+	for _ in range(batch):
 		G = nx.fast_gnp_random_graph(dim, 0.2)
 		A = nx.to_numpy_matrix(G)
 		idx = np.random.randint(A.shape[0])
@@ -209,4 +249,5 @@ def read_ego_new():
 		Xs.append(X)
 
 	return Gs, Xs
+
 
