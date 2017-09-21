@@ -219,7 +219,7 @@ class GenerativeGCN(Model):
         self.input_dim = input_dim
         self.vertex_count = vertex_count
 
-        self.output_dim = 2
+        self.output_dim = 1
         self.placeholders = placeholders
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
@@ -228,26 +228,8 @@ class GenerativeGCN(Model):
 
     def _loss(self):
 
-        def fn(x):
-            adj_norm = x[0]
-            diag = tf.diag_part(adj_norm)
-            count = tf.count_nonzero(diag)
-            count = tf.cast(count, tf.int32)
-            label = x[1]
-            outputs = x[2]
-            all_connections = outputs[:,0]
-            connections = tf.squeeze(all_connections[:count])
-            endbit = tf.reduce_mean(outputs[:,1])
-            # self.loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
-            # self.loss += tf.nn.sigmoid_cross_entropy_with_logits(logits=self.endbit, labels=label[-1])
-            # self.loss = tf.divide(self.loss, tf.cast(tf.add(count, tf.constant(1, tf.int32)), tf.float32))
-            loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=connections, labels=label[:count]))
-            return [loss, all_connections, endbit]
-
-        self.loss, self.connections, self.endbit = tf.map_fn(fn, [self.placeholders['adj_norm'], self.placeholders['adj'], self.outputs])
-        self.loss = tf.reduce_mean(self.loss)
-        self.connections = tf.squeeze(self.connections)
-        self.endbit = tf.squeeze(self.endbit)
+        self.pred = tf.squeeze(tf.reduce_mean(self.outputs, 1))
+        self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.pred, labels=self.placeholders["labels"]))
 
         for var in self.layers[0].vars.values():
             self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
@@ -271,14 +253,12 @@ class GenerativeGCN(Model):
                                             placeholders=self.placeholders,
                                             act=tf.nn.relu,
                                             dropout=True,
-                                            bias = True,
                                             logging=self.logging))
         self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden2,
                                             output_dim=self.output_dim,
                                             placeholders=self.placeholders,
                                             act=lambda x: x,
                                             dropout=True,
-                                            bias = True,
                                             logging=self.logging))
 
 

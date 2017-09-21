@@ -167,7 +167,7 @@ def read_mutag():
 			col = [0] * len(V)
 			X = csr_matrix((V,(row,col)), dtype = 'int16')
 
-			A, X = order_canonically(A.todense(), X.todense())
+			A, X = A.todense(), X.todense()
 			A, X = pad(A, X, VERTICES)
 			X = np.hstack((X, np.identity(VERTICES)))
 			As.append(A)
@@ -176,16 +176,16 @@ def read_mutag():
 
 def read_star():
 	dim = FLAGS.max_dim
-	batch = 100
+	batch = 300
 
 	As = []
 	Xs = []
 
 	for i in range(batch):
-		A = np.zeros((dim, dim))
-		idx = np.random.randint(A.shape[0])
-		A[idx, :] = A[:, idx] = 1
-		A[idx, idx] = 0
+		G = nx.star_graph(dim-1)
+		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
+		G = nx.relabel_nodes(G, mapping)
+		A = nx.to_numpy_matrix(G)
 
 		X = np.identity(dim)
 		As.append(A)
@@ -202,6 +202,25 @@ def read_ring():
 
 	for _ in range(batch):
 		G = nx.cycle_graph(dim)
+		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
+		G = nx.relabel_nodes(G, mapping)
+		A = nx.to_numpy_matrix(G)
+
+		X = np.identity(dim)
+		As.append(A)
+		Xs.append(X)
+
+	return As, Xs, dim
+
+def read_bipartite():
+	dim = FLAGS.max_dim
+	batch = 100
+
+	As = []
+	Xs = []
+
+	for _ in range(batch):
+		G = nx.complete_bipartite_graph(dim - 3, 3)
 		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
 		G = nx.relabel_nodes(G, mapping)
 		A = nx.to_numpy_matrix(G)
@@ -231,23 +250,5 @@ def read_ego():
 		Xs.append(X)
 
 	return As, Xs, dim
-
-def read_ego_new():
-	dim = 5
-	batch = 100
-
-	Gs = []
-	Xs = []
-
-	for _ in range(batch):
-		G = nx.star_graph(dim-1)
-		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
-		G = nx.relabel_nodes(G, mapping)
-		X = np.identity(dim)
-
-		Gs.append(G)
-		Xs.append(X)
-
-	return Gs, Xs
 
 

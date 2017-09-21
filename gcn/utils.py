@@ -57,37 +57,46 @@ def load_generative_data(read_func):
     batch = len(As)
     feature_count = Xs[0].shape[1]
 
-    total = 0
+    labels = []
+    A_norm = []
+    X = []
+
+    count = 0
     for i in range(batch):
         adj = As[i]
-        total += adj.shape[0]-1
-
-    A = np.zeros((total, dim + 1))
-    A_norm = np.zeros((total, dim, dim))
-    X = np.zeros((total, dim, feature_count))
-
-    idx = 0
-    for i in range(batch):
-        adj = As[i]
-        feature = Xs[i]
+        features = Xs[i]
         localdim = adj.shape[0]
-        for j in range(1, localdim):
-            adj_norm = preprocess_adj(adj[:j,:j]).todense()
-            label = np.zeros(dim + 1)
-            label[:localdim] = adj[j]
-            if j == localdim-1:
-                label[-1] = 1 #bit to denote end of graph
-            A_norm[idx,:j,:j] = adj_norm
-            X[idx,:,:] = feature
-            A[idx,:] = label
-            idx += 1
+        partial = np.zeros((dim, dim))
+        for r in range(localdim):
+            for c in range(r):
+                adj_norm = preprocess_adj(partial).todense()
+                label = adj[r,c]
 
-    train_mask = np.random.choice(2, total, p=[FLAGS.validation, 1 - FLAGS.validation])
+                #update feature with known nodes?
+                #update feature with where to predict?
+                edge_feature = np.zeros((dim, 1))
+                edge_feature[r,0] = edge_feature[c,0] = 1
+
+                updated_feature = np.hstack((features, edge_feature))
+                X.append(np.asarray(updated_feature))
+                A_norm.append(np.asarray(adj_norm))
+                labels.append(label)
+
+                partial[r,c] = partial[c,r] = label
+                count += 1
+
+    labels = np.array(labels)
+    A_norm = np.dstack(tuple(A_norm))
+    A_norm = np.transpose(A_norm, axes=(2, 0, 1))
+    X = np.dstack(tuple(X))
+    X = np.transpose(X, axes=(2, 0, 1))
+
+    train_mask = np.random.choice(2, count, p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)
     val_mask = np.array(val_mask, dtype=np.bool)
 
-    return A, A_norm, X, train_mask, val_mask, dim, feature_count
+    return labels, A_norm, X, train_mask, val_mask, dim, feature_count + 1
 
 
 def load_generative_edge_data(read_func):
@@ -203,11 +212,11 @@ def construct_feed_dict(features, support, labels, labels_mask, placeholders):
     feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
     return feed_dict
 
-def construct_generative_feed_dict(features, adj, adj_norm, placeholders):
+def construct_generative_feed_dict(features, labels, adj_norm, placeholders):
     """Construct feed dictionary."""
     feed_dict = dict()
     feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['adj']: adj})
+    feed_dict.update({placeholders['labels']: labels})
     feed_dict.update({placeholders['adj_norm']: adj_norm})
     feed_dict.update({placeholders['num_features_nonzero']: np.asarray(features.shape)})
     return feed_dict
