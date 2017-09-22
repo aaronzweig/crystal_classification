@@ -151,7 +151,7 @@ acc = np.mean(np.array(acc))
 
 plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
 title = FLAGS.dataset + str(vertex_count)
-plt.suptitle(title + "\n Acc = " + str(acc))
+plt.suptitle(title)
 if FLAGS.save:
     plt.savefig("saved/" + title)
 plt.show()

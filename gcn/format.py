@@ -104,6 +104,15 @@ def pad(A, X, vertex_count):
 	new_X[:X.shape[0], :] = X
 	return new_A, new_X
 
+def reorder_graph(G):
+	dim = G.order()
+	T = nx.bfs_tree(G, np.random.randint(dim))
+	top = nx.topological_sort(T)
+	order = [top.index(i) for i in range(dim)]
+	# order = np.random.permutation(dim)
+	mapping = dict(zip(G.nodes(),order))
+	return nx.relabel_nodes(G, mapping)
+
 def read_clintox():
 	#hard-coded maximum vertex count specifically for the clintox dataset
 	VERTICES = 150
@@ -183,8 +192,7 @@ def read_star():
 
 	for i in range(batch):
 		G = nx.star_graph(dim-1)
-		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
-		G = nx.relabel_nodes(G, mapping)
+		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
 
 		X = np.identity(dim)
@@ -202,8 +210,7 @@ def read_ring():
 
 	for _ in range(batch):
 		G = nx.cycle_graph(dim)
-		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
-		G = nx.relabel_nodes(G, mapping)
+		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
 
 		X = np.identity(dim)
@@ -221,8 +228,7 @@ def read_bipartite():
 
 	for _ in range(batch):
 		G = nx.complete_bipartite_graph(dim - 3, 3)
-		mapping = dict(zip(G.nodes(),np.random.permutation(dim)))
-		G = nx.relabel_nodes(G, mapping)
+		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
 
 		X = np.identity(dim)
@@ -233,7 +239,7 @@ def read_bipartite():
 
 def read_ego():
 	dim = FLAGS.max_dim
-	batch = 300
+	batch = 800
 
 	As = []
 	Xs = []
@@ -250,5 +256,3 @@ def read_ego():
 		Xs.append(X)
 
 	return As, Xs, dim
-
-
