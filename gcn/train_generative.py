@@ -34,7 +34,8 @@ flags.DEFINE_integer('early_stopping', 200, 'Tolerance for early stopping (# of 
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
 flags.DEFINE_string('dataset', "star", 'Name of dataset to load')
 flags.DEFINE_integer('max_dim', 3, 'Maximum vertex count of graph')
-flags.DEFINE_boolean('save', False, 'Whether to save (otherwise plot generated graphs')
+flags.DEFINE_boolean('save', False, 'Whether to save generated graphs')
+flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
@@ -154,7 +155,8 @@ title = FLAGS.dataset + str(vertex_count)
 plt.suptitle(title)
 if FLAGS.save:
     plt.savefig("saved/" + title)
-plt.show()
+if FLAGS.plot:
+    plt.show()
 plt.close()
 
 plt.plot(cost_train)
@@ -162,5 +164,7 @@ plt.plot(cost_val)
 plt.legend(['train', 'validation'], loc='upper left')
 if FLAGS.save:
     plt.savefig("saved/" + title + " graph")
-plt.show()
+if FLAGS.plot:
+    plt.show()
+plt.close()
 

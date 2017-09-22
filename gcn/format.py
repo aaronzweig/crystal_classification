@@ -1,4 +1,4 @@
-from pynauty import Graph, certificate, autgrp
+# from pynauty import Graph, certificate, autgrp
 import numpy as np
 from scipy.sparse import csr_matrix, hstack, identity
 from rdkit import Chem
@@ -61,26 +61,26 @@ def num_bond_features():
 
 ##########################################################################
 
-def order_canonically(A, X):
-	adjacency_dict = {}
-	for i in range(A.shape[0]):
-		for j in range(A.shape[1]):
-			if A[i,j] != 0:
-				adjacency_dict[i] = adjacency_dict.get(i, []) + [j]
+# def order_canonically(A, X):
+# 	adjacency_dict = {}
+# 	for i in range(A.shape[0]):
+# 		for j in range(A.shape[1]):
+# 			if A[i,j] != 0:
+# 				adjacency_dict[i] = adjacency_dict.get(i, []) + [j]
 
-	g = Graph(A.shape[0], False, adjacency_dict)
-	labeling = certificate(g)
+# 	g = Graph(A.shape[0], False, adjacency_dict)
+# 	labeling = certificate(g)
 
-	new_A = np.zeros_like(A)
-	new_X = np.zeros_like(X)
+# 	new_A = np.zeros_like(A)
+# 	new_X = np.zeros_like(X)
 
-	for i in range(A.shape[0]):
-		new_X[labeling.index(i), :] = X[i,:]
-		for j in range(A.shape[1]):
-			new_A[labeling.index(i), labeling.index(j)] = A[i,j]
+# 	for i in range(A.shape[0]):
+# 		new_X[labeling.index(i), :] = X[i,:]
+# 		for j in range(A.shape[1]):
+# 			new_A[labeling.index(i), labeling.index(j)] = A[i,j]
 			
 
-	return new_A, new_X
+# 	return new_A, new_X
 
 def smiles_to_graph(smiles):
 	mol = Chem.MolFromSmiles(smiles)
@@ -129,7 +129,6 @@ def read_clintox():
 
 			if Chem.MolFromSmiles(smiles) is not None:
 				A, X = smiles_to_graph(smiles)
-				A, X = order_canonically(A, X)
 				A, X = pad(A, X, VERTICES)
 				X = np.hstack((X, np.identity(VERTICES)))
 				As.append(A)

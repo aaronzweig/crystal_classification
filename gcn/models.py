@@ -246,6 +246,7 @@ class GenerativeGCN(Model):
                                             placeholders=self.placeholders,
                                             act=tf.nn.relu,
                                             dropout=True,
+                                            first=True,
                                             logging=self.logging))
 
         self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden1,
