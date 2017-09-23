@@ -75,7 +75,7 @@ model = model_func(placeholders, input_dim=feature_count, vertex_count = vertex_
 if FLAGS.gpu == -1:
     sess = tf.Session()
 else:
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) # Or whichever device you would like to use
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(FLAGS.gpu) # Or whichever device you would like to use
     gpu_options = tf.GPUOptions(allow_growth=True)
     sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
 
