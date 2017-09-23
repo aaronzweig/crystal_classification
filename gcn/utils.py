@@ -52,6 +52,13 @@ def load_global_data(read_func):
 
     return A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
 
+def make_helper_features(dim, r, c):
+    features = np.zeros((dim, 3))
+    features[r,0] = 1
+    features[c,1] = 1
+    features[:c,2] = 1
+    return features
+
 def load_generative_data(read_func):
     As, Xs, dim = read_func()
     batch = len(As)
@@ -61,7 +68,6 @@ def load_generative_data(read_func):
     A_norm = []
     X = []
 
-    count = 0
     for i in range(batch):
         adj = As[i]
         features = Xs[i]
@@ -72,18 +78,14 @@ def load_generative_data(read_func):
                 adj_norm = preprocess_adj(partial).todense()
                 label = adj[r,c]
 
-                #update feature with known nodes?
-                #update feature with where to predict?
-                edge_feature = np.zeros((dim, 1))
-                edge_feature[r,0] = edge_feature[c,0] = 1
+                helper_features = make_helper_features(dim, r, c)
+                updated_feature = np.hstack((features, helper_features))
 
-                updated_feature = np.hstack((features, edge_feature))
                 X.append(np.asarray(updated_feature))
                 A_norm.append(np.asarray(adj_norm))
                 labels.append(label)
 
                 partial[r,c] = partial[c,r] = label
-                count += 1
 
     labels = np.array(labels)
     A_norm = np.dstack(tuple(A_norm))
@@ -91,12 +93,12 @@ def load_generative_data(read_func):
     X = np.dstack(tuple(X))
     X = np.transpose(X, axes=(2, 0, 1))
 
-    train_mask = np.random.choice(2, count, p=[FLAGS.validation, 1 - FLAGS.validation])
+    train_mask = np.random.choice(2, X.shape[0], p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)
     val_mask = np.array(val_mask, dtype=np.bool)
 
-    return labels, A_norm, X, train_mask, val_mask, dim, feature_count + 1
+    return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2]
 
 
 def load_generative_edge_data(read_func):

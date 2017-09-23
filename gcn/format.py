@@ -61,27 +61,6 @@ def num_bond_features():
 
 ##########################################################################
 
-# def order_canonically(A, X):
-# 	adjacency_dict = {}
-# 	for i in range(A.shape[0]):
-# 		for j in range(A.shape[1]):
-# 			if A[i,j] != 0:
-# 				adjacency_dict[i] = adjacency_dict.get(i, []) + [j]
-
-# 	g = Graph(A.shape[0], False, adjacency_dict)
-# 	labeling = certificate(g)
-
-# 	new_A = np.zeros_like(A)
-# 	new_X = np.zeros_like(X)
-
-# 	for i in range(A.shape[0]):
-# 		new_X[labeling.index(i), :] = X[i,:]
-# 		for j in range(A.shape[1]):
-# 			new_A[labeling.index(i), labeling.index(j)] = A[i,j]
-			
-
-# 	return new_A, new_X
-
 def smiles_to_graph(smiles):
 	mol = Chem.MolFromSmiles(smiles)
 	#mol = Chem.AddHs(mol)
@@ -184,7 +163,7 @@ def read_mutag():
 
 def read_star():
 	dim = FLAGS.max_dim
-	batch = 300
+	batch = FLAGS.training_size
 
 	As = []
 	Xs = []
@@ -202,7 +181,7 @@ def read_star():
 
 def read_ring():
 	dim = FLAGS.max_dim
-	batch = 100
+	batch = FLAGS.training_size
 
 	As = []
 	Xs = []
@@ -220,7 +199,7 @@ def read_ring():
 
 def read_bipartite():
 	dim = FLAGS.max_dim
-	batch = 100
+	batch = FLAGS.training_size
 
 	As = []
 	Xs = []
@@ -238,13 +217,13 @@ def read_bipartite():
 
 def read_ego():
 	dim = FLAGS.max_dim
-	batch = 800
+	batch = FLAGS.training_size
 
 	As = []
 	Xs = []
 
 	for _ in range(batch):
-		G = nx.fast_gnp_random_graph(dim, 0.2)
+		G = nx.fast_gnp_random_graph(dim, 0.1)
 		A = nx.to_numpy_matrix(G)
 		idx = np.random.randint(A.shape[0])
 		A[idx, :] = A[:, idx] = 1

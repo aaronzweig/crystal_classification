@@ -24,18 +24,21 @@ tf.set_random_seed(seed)
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('epochs', 600, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 1200, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 6, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('hidden3', 4, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0.000, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.007, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 200, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
-flags.DEFINE_string('dataset', "star", 'Name of dataset to load')
-flags.DEFINE_integer('max_dim', 3, 'Maximum vertex count of graph')
-flags.DEFINE_boolean('save', False, 'Whether to save generated graphs')
+flags.DEFINE_string('dataset', "ego", 'Name of dataset to load')
+flags.DEFINE_integer('max_dim', 6, 'Maximum vertex count of graph')
+flags.DEFINE_integer('training_size', 500, 'Number of training examples')
 flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
+flags.DEFINE_boolean('save', False, 'Whether to save the plots of generated graphs')
+flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
@@ -68,11 +71,15 @@ placeholders = {
 # Create model
 model = model_func(placeholders, input_dim=feature_count, vertex_count = vertex_count, logging=True)
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0' # Or whichever device you would like to use
-# gpu_options = tf.GPUOptions(allow_growth=True)
-# sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
 
-sess = tf.Session()
+if FLAGS.gpu == -1:
+    sess = tf.Session()
+else:
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) # Or whichever device you would like to use
+    gpu_options = tf.GPUOptions(allow_growth=True)
+    sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True))
+
+
 
 
 # Define model evaluation function
@@ -115,6 +122,18 @@ print("Optimization Finished!")
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
+def is_accurate(G):
+    if FLAGS.dataset == "ego":
+        A = nx.to_numpy_matrix(G)
+        np.fill_diagonal(A, 1)
+        return np.max(np.min(A, 0))
+    elif FLAGS.dataset == "star":
+        H = nx.star_graph(G.order() - 1)
+        return nx.is_isomorphic(G,H)
+    elif FLAGS.dataset == "ring":
+        cycles = nx.cycle_basis(G)
+        return len(cycles) == 1 and len(cycles[0]) == G.order()
+
 def generate():
     partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
@@ -122,12 +141,10 @@ def generate():
     for r in range(vertex_count):
         for c in range(r):
             partial_norm[0] = preprocess_adj(partial).todense()
-            edge_feature = np.zeros((vertex_count, 1))
-            edge_feature[r,0] = edge_feature[c,0] = 1
+            helper_features = make_helper_features(vertex_count, r, c)
+            partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
 
-            partial_feature[0] = np.hstack((np.identity(vertex_count), edge_feature))
-
-            feed_dict = construct_generative_feed_dict(partial_feature, 0, partial_norm, placeholders)
+            feed_dict = construct_generative_feed_dict(partial_feature, -1, partial_norm, placeholders)
             pred = sess.run([model.pred], feed_dict=feed_dict)
             pred = sigmoid(pred[0])
             label = np.random.choice(2, p = [1-pred, pred])
@@ -137,26 +154,30 @@ def generate():
             # if end == 1:
             #     break
     G = nx.from_numpy_matrix(partial)
-    A = nx.to_numpy_matrix(G)
-    np.fill_diagonal(A, 1)
+    return G
 
-    nx.draw_networkx(G, pos=nx.spring_layout(G), node_size = 40, font_size=7)
-    return np.max(np.min(A, 0))
+graphs = []
+for i in range(100):
+    graphs.append(generate())
 
-acc = []
-for i in range(20):
+acc = [is_accurate(G) for G in graphs]
+print(np.mean(np.array(acc)))
+
+if not FLAGS.plot:
+    sys.exit()
+
+for i in range(len(graphs)):
     plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
     plt.subplot(4, 5, i + 1)
-    acc.append(generate())
-acc = np.mean(np.array(acc))
+    G = graphs[i]
+    nx.draw_networkx(G, pos=nx.spring_layout(G), node_size = 40, font_size=7)
 
 plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
 title = FLAGS.dataset + str(vertex_count)
 plt.suptitle(title)
 if FLAGS.save:
     plt.savefig("saved/" + title)
-if FLAGS.plot:
-    plt.show()
+plt.show()
 plt.close()
 
 plt.plot(cost_train)
@@ -164,7 +185,6 @@ plt.plot(cost_val)
 plt.legend(['train', 'validation'], loc='upper left')
 if FLAGS.save:
     plt.savefig("saved/" + title + " graph")
-if FLAGS.plot:
-    plt.show()
+plt.show()
 plt.close()
 
