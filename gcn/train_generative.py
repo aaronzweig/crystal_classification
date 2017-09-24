@@ -39,6 +39,7 @@ flags.DEFINE_integer('training_size', 500, 'Number of training examples')
 flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
 flags.DEFINE_boolean('save', False, 'Whether to save the plots of generated graphs')
 flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
+flags.DEFINE_boolean('all_permutations', True, 'Iterate over all possible permutations')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
@@ -166,7 +167,7 @@ print(np.mean(np.array(acc)))
 if not FLAGS.plot:
     sys.exit()
 
-for i in range(len(graphs)):
+for i in range(20):
     plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
     plt.subplot(4, 5, i + 1)
     G = graphs[i]

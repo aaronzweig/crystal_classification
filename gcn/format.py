@@ -88,7 +88,8 @@ def reorder_graph(G):
 	T = nx.bfs_tree(G, np.random.randint(dim))
 	top = nx.topological_sort(T)
 	order = [top.index(i) for i in range(dim)]
-	# order = np.random.permutation(dim)
+	if FLAGS.all_permutations:
+		order = np.random.permutation(dim)
 	mapping = dict(zip(G.nodes(),order))
 	return nx.relabel_nodes(G, mapping)
 
