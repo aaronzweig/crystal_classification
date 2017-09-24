@@ -150,10 +150,6 @@ def generate():
             pred = sigmoid(pred[0])
             label = np.random.choice(2, p = [1-pred, pred])
             partial[r,c] = partial[c,r] = label
-            # endbit = sigmoid(endbit)
-            # end = np.random.choice(2, p = [1-endbit, endbit])
-            # if end == 1:
-            #     break
     G = nx.from_numpy_matrix(partial)
     return G
 
