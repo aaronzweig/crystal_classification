@@ -4,6 +4,7 @@ import networkx as nx
 import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
+import Queue
 
 import format
 
@@ -52,15 +53,17 @@ def load_global_data(read_func):
 
     return A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
 
-def make_helper_features(dim, r, c):
-    features = np.zeros((dim, 3))
+def make_helper_features(dim, r, c, hit_nodes):
+    features = np.zeros((dim, 4))
     features[r,0] = 1
     features[c,1] = 1
     features[:c,2] = 1
+    features[:,3] = hit_nodes
     return features
 
 def load_generative_data(read_func):
-    As, Xs, dim = read_func()
+    As, Xs = read_func()
+    dim = FLAGS.max_dim
     batch = len(As)
     feature_count = Xs[0].shape[1]
 
@@ -69,16 +72,25 @@ def load_generative_data(read_func):
     X = []
 
     for i in range(batch):
-        adj = As[i]
+        temp = As[i]
+        adj = np.zeros((dim, dim))
+        adj[:temp.shape[0], :temp.shape[1]] = temp
         features = Xs[i]
-        localdim = adj.shape[0]
         partial = np.zeros((dim, dim))
-        for r in range(localdim):
-            for c in range(r):
+        hit_nodes = np.zeros(dim)
+        q = Queue.Queue()
+        enqueued = set()
+        q.put(0)
+        enqueued.add(0)
+
+        while not q.empty():
+            r = q.get()
+            for c in range(dim):
+                if hit_nodes[c] == 1:
+                    continue
                 adj_norm = preprocess_adj(partial).todense()
                 label = adj[r,c]
-
-                helper_features = make_helper_features(dim, r, c)
+                helper_features = make_helper_features(dim, r, c, hit_nodes)
                 updated_feature = np.hstack((features, helper_features))
 
                 X.append(np.asarray(updated_feature))
@@ -86,6 +98,10 @@ def load_generative_data(read_func):
                 labels.append(label)
 
                 partial[r,c] = partial[c,r] = label
+                if label == 1 and c not in enqueued:
+                    q.put(c)
+                    enqueued.add(c)
+            hit_nodes[r] = 1
 
     labels = np.array(labels)
     A_norm = np.dstack(tuple(A_norm))

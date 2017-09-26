@@ -94,6 +94,7 @@ class Dense(Layer):
             self.dropout = 0.
 
         self.act = act
+        self.adj_norm = placeholders['adj_norm']
         self.sparse_inputs = sparse_inputs
         self.featureless = featureless
         self.bias = bias
@@ -119,8 +120,14 @@ class Dense(Layer):
         else:
             x = tf.nn.dropout(x, 1-self.dropout)
 
+        input_dim = self.vars['weights'].get_shape().as_list()[0]
+        output_dim = self.vars['weights'].get_shape().as_list()[1]
+        vertex_count = int(self.adj_norm.get_shape()[1])
+
         # transform
-        output = dot(x, self.vars['weights'], sparse=self.sparse_inputs)
+        x = tf.reshape(x, [-1, input_dim])
+        output = tf.matmul(x, self.vars['weights'])
+        output = tf.reshape(output, [-1, vertex_count, output_dim])
 
         # bias
         if self.bias:

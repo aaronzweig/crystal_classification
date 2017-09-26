@@ -261,7 +261,7 @@ class GenerativeGCN(Model):
                                             act=tf.nn.relu,
                                             dropout=True,
                                             logging=self.logging))
-        self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden3,
+        self.layers.append(Dense(input_dim=FLAGS.hidden3,
                                             output_dim=self.output_dim,
                                             placeholders=self.placeholders,
                                             act=lambda x: x,

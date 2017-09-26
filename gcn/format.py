@@ -4,6 +4,8 @@ from scipy.sparse import csr_matrix, hstack, identity
 from rdkit import Chem
 import csv
 import networkx as nx
+import matplotlib.pyplot as plt
+
 
 import tensorflow as tf
 flags = tf.app.flags
@@ -85,8 +87,9 @@ def pad(A, X, vertex_count):
 
 def reorder_graph(G):
 	dim = G.order()
-	T = nx.bfs_tree(G, np.random.randint(dim))
-	top = nx.topological_sort(T)
+	root = np.random.randint(dim)
+	top = [root] + [b for (a,b) in nx.bfs_edges(G, root)]
+
 	order = [top.index(i) for i in range(dim)]
 	if FLAGS.all_permutations:
 		order = np.random.permutation(dim)
@@ -170,7 +173,8 @@ def read_star():
 	Xs = []
 
 	for i in range(batch):
-		G = nx.star_graph(dim-1)
+		local_dim = np.random.randint(3,dim + 1)
+		G = nx.star_graph(local_dim - 1)
 		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
 
@@ -178,7 +182,7 @@ def read_star():
 		As.append(A)
 		Xs.append(X)
 
-	return As, Xs, dim
+	return As, Xs
 
 def read_ring():
 	dim = FLAGS.max_dim
@@ -188,7 +192,8 @@ def read_ring():
 	Xs = []
 
 	for _ in range(batch):
-		G = nx.cycle_graph(dim)
+		local_dim = np.random.randint(3,dim + 1)
+		G = nx.cycle_graph(local_dim)
 		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
 
@@ -196,7 +201,7 @@ def read_ring():
 		As.append(A)
 		Xs.append(X)
 
-	return As, Xs, dim
+	return As, Xs
 
 def read_bipartite():
 	dim = FLAGS.max_dim
@@ -206,7 +211,8 @@ def read_bipartite():
 	Xs = []
 
 	for _ in range(batch):
-		G = nx.complete_bipartite_graph(dim - 3, 3)
+		side = np.random.randint(1,4)
+		G = nx.complete_bipartite_graph(dim - side, side)
 		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
 
@@ -214,7 +220,7 @@ def read_bipartite():
 		As.append(A)
 		Xs.append(X)
 
-	return As, Xs, dim
+	return As, Xs
 
 def read_ego():
 	dim = FLAGS.max_dim
@@ -224,14 +230,16 @@ def read_ego():
 	Xs = []
 
 	for _ in range(batch):
-		G = nx.fast_gnp_random_graph(dim, 0.1)
+		#local_dim = np.random.randint(3,dim + 1)
+		local_dim = dim
+		G = nx.fast_gnp_random_graph(local_dim, 0.1)
+		H = nx.star_graph(local_dim - 1)
+		G = nx.compose(G,H)
+		G = reorder_graph(G)
 		A = nx.to_numpy_matrix(G)
-		idx = np.random.randint(A.shape[0])
-		A[idx, :] = A[:, idx] = 1
-		A[idx, idx] = 0
 
 		X = np.identity(dim)
 		As.append(A)
 		Xs.append(X)
 
-	return As, Xs, dim
+	return As, Xs

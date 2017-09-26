@@ -24,10 +24,10 @@ tf.set_random_seed(seed)
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('epochs', 1200, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 500, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2', 6, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('hidden3', 4, 'Number of units in hidden layer 3.')
+flags.DEFINE_integer('hidden2', 10, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('hidden3', 10, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0.000, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.007, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
@@ -126,6 +126,8 @@ def sigmoid(x):
 def is_accurate(G):
     if FLAGS.dataset == "ego":
         A = nx.to_numpy_matrix(G)
+        if G.order() == 0:
+            return 0
         np.fill_diagonal(A, 1)
         return np.max(np.min(A, 0))
     elif FLAGS.dataset == "star":
@@ -133,24 +135,44 @@ def is_accurate(G):
         return nx.is_isomorphic(G,H)
     elif FLAGS.dataset == "ring":
         cycles = nx.cycle_basis(G)
-        return len(cycles) == 1 and len(cycles[0]) == G.order()
+        H = nx.cycle_graph(G.order())
+        return nx.is_isomorphic(G,H)
+    else:
+        return 0
 
 def generate():
     partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
     partial_norm = np.zeros((1, vertex_count, vertex_count))
-    for r in range(vertex_count):
-        for c in range(r):
+
+    hit_nodes = np.zeros(vertex_count)
+    q = Queue.Queue()
+    enqueued = set()
+    q.put(0)
+    enqueued.add(0)
+
+    while not q.empty():
+        r = q.get()
+        for c in range(vertex_count):
+            if hit_nodes[c] == 1:
+                continue
             partial_norm[0] = preprocess_adj(partial).todense()
-            helper_features = make_helper_features(vertex_count, r, c)
+            helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
             partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
 
             feed_dict = construct_generative_feed_dict(partial_feature, -1, partial_norm, placeholders)
             pred = sess.run([model.pred], feed_dict=feed_dict)
             pred = sigmoid(pred[0])
             label = np.random.choice(2, p = [1-pred, pred])
+
             partial[r,c] = partial[c,r] = label
+            if label == 1 and c not in enqueued:
+                q.put(c)
+                enqueued.add(c)
+        hit_nodes[r] = 1
+
     G = nx.from_numpy_matrix(partial)
+    G.remove_nodes_from(nx.isolates(G))
     return G
 
 graphs = []
