@@ -76,8 +76,10 @@ def load_generative_data(read_func):
         adj = np.zeros((dim, dim))
         adj[:temp.shape[0], :temp.shape[1]] = temp
         features = Xs[i]
-        partial = np.zeros((dim, dim))
+        partial = np.zeros((dim, dim)) + FLAGS.adj_mask
+        np.fill_diagonal(partial, 0)
         hit_nodes = np.zeros(dim)
+
         q = Queue.Queue()
         enqueued = set()
         q.put(0)
@@ -86,7 +88,7 @@ def load_generative_data(read_func):
         while not q.empty():
             r = q.get()
             for c in range(dim):
-                if hit_nodes[c] == 1:
+                if hit_nodes[c] == 1 or c == r:
                     continue
                 adj_norm = preprocess_adj(partial).todense()
                 label = adj[r,c]
@@ -116,64 +118,6 @@ def load_generative_data(read_func):
 
     return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2]
 
-
-def load_generative_edge_data(read_func):
-    Gs, Xs = read_func()
-    batch = len(Gs)
-    dim = Gs[0].number_of_nodes()
-    feature_count = Xs[0].shape[1] + 1
-
-    A_list = []
-    A_norm_list = []
-    X_list = []
-
-    def load(A_list, A_norm_list, X_list, A, H, feature, dim):
-        adj = nx.adjacency_matrix(H).todense()
-        dense_adj = np.zeros((dim, dim))
-        dense_adj[:adj.shape[0], :adj.shape[1]] = adj
-        A_list.append(A)
-        A_norm_list.append(dense_adj)
-        X_list.append(feature)
-
-    for i in range(batch):
-        G = Gs[i]
-
-        H = nx.null_graph()
-        for n in range(dim):
-            feature = np.hstack(Xs[i], np.zeros((dim, 1)))
-            feature[-1][n] = 1
-            H.add_node(n)
-            low_neighbors = G.neighbors(n)
-            low_neighbors = filter(lambda x: x < n, low_neighbors)
-            
-            while len(low_neighbors) != 0:
-                A = np.zeros(dim)
-                A[low_neighbors] = 1
-                A /= 1.0 * np.sum(A)
-                load(A_list, A_norm_list, X_list, A, H, feature, dim)
-
-                m = low_neighbors.pop()
-                H.add_edge(n,m)
-
-            A = np.zeros(dim)
-            A[n] = 1
-            load(A_list, A_norm_list, X_list, A, H, feature, dim)
-
-
-
-
-    A = np.stack(tuple(A_list))
-    A_norm = np.dstack(tuple(A_norm_list))
-    A_norm = np.transpose(A_norm, axes=(2, 0, 1))
-    X = np.dstack(tuple(X_list))
-    X = np.transpose(X, axes=(2, 0, 1))
-
-    train_mask = np.random.choice(2, batch, p=[FLAGS.validation, 1 - FLAGS.validation])
-    val_mask = 1 - train_mask
-    train_mask = np.array(train_mask, dtype=np.bool)
-    val_mask = np.array(val_mask, dtype=np.bool)
-
-    return A, A_norm, X, train_mask, val_mask, dim, feature_count
 
 def sparse_to_tuple(sparse_mx):
     """Convert sparse matrix to tuple representation."""

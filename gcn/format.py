@@ -26,26 +26,15 @@ def atom_features(atom):
 							'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
 							'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
 							'Cr', 'Pt', 'Hg', 'Pb', 'Unknown']
-	features = [atom.GetDegree(),
-    			atom.GetTotalNumHs(),
-    			atom.GetImplicitValence(),
-    			atom.GetFormalCharge(),
-                atom.GetChiralTag(),
-                atom.GetHybridization(),
-                atom.GetNumExplicitHs(),
-    			atom.GetIsAromatic()]
 
-	features += one_of_k_encoding_unk(atom.GetSymbol(), recognized_elements)
-	return np.array(features)
+	return np.array(one_of_k_encoding_unk(atom.GetSymbol(), recognized_elements))
 
 def bond_features(bond):
     bt = bond.GetBondType()
     return np.array([bt == Chem.rdchem.BondType.SINGLE,
                      bt == Chem.rdchem.BondType.DOUBLE,
                      bt == Chem.rdchem.BondType.TRIPLE,
-                     bt == Chem.rdchem.BondType.AROMATIC,
-                     bond.GetIsConjugated(),
-                     bond.IsInRing()])
+                     bt == Chem.rdchem.BondType.AROMATIC])
 
 def num_atom_features():
     # Return length of feature vector using a very simple molecule.
@@ -68,7 +57,6 @@ def smiles_to_graph(smiles):
 	#mol = Chem.AddHs(mol)
 	A = Chem.rdmolops.GetAdjacencyMatrix(mol)
 
-	#TODO: add bond features to feature matrix
 	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
 
 	for i in range(mol.GetNumAtoms()):
@@ -86,6 +74,7 @@ def pad(A, X, vertex_count):
 	return new_A, new_X
 
 def reorder_graph(G):
+
 	dim = G.order()
 	root = np.random.randint(dim)
 	top = [root] + [b for (a,b) in nx.bfs_edges(G, root)]
@@ -94,6 +83,7 @@ def reorder_graph(G):
 	if FLAGS.all_permutations:
 		order = np.random.permutation(dim)
 	mapping = dict(zip(G.nodes(),order))
+
 	return nx.relabel_nodes(G, mapping)
 
 def read_clintox():
@@ -165,7 +155,7 @@ def read_mutag():
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
 
-def read_star():
+def read_toy():
 	dim = FLAGS.max_dim
 	batch = FLAGS.training_size
 
@@ -173,71 +163,23 @@ def read_star():
 	Xs = []
 
 	for i in range(batch):
-		local_dim = np.random.randint(3,dim + 1)
-		G = nx.star_graph(local_dim - 1)
-		G = reorder_graph(G)
+		local_dim = np.random.randint(4,dim + 1)
+		if FLAGS.dataset == "star":
+			G = nx.star_graph(local_dim - 1)
+			G = reorder_graph(G)
+		elif FLAGS.dataset == "ring":
+			G = nx.cycle_graph(local_dim)
+			G = reorder_graph(G)
+		elif FLAGS.dataset == "ego":
+			G = nx.fast_gnp_random_graph(local_dim, 0.1)
+			H = nx.star_graph(local_dim - 1)
+			G = nx.compose(G,H)
+			G = reorder_graph(G)
+		elif FLAGS.dataset == "lollipop":
+			G = nx.lollipop_graph(3, local_dim - 3)
+			G = reorder_graph(G)
+
 		A = nx.to_numpy_matrix(G)
-
-		X = np.identity(dim)
-		As.append(A)
-		Xs.append(X)
-
-	return As, Xs
-
-def read_ring():
-	dim = FLAGS.max_dim
-	batch = FLAGS.training_size
-
-	As = []
-	Xs = []
-
-	for _ in range(batch):
-		local_dim = np.random.randint(3,dim + 1)
-		G = nx.cycle_graph(local_dim)
-		G = reorder_graph(G)
-		A = nx.to_numpy_matrix(G)
-
-		X = np.identity(dim)
-		As.append(A)
-		Xs.append(X)
-
-	return As, Xs
-
-def read_bipartite():
-	dim = FLAGS.max_dim
-	batch = FLAGS.training_size
-
-	As = []
-	Xs = []
-
-	for _ in range(batch):
-		side = np.random.randint(1,4)
-		G = nx.complete_bipartite_graph(dim - side, side)
-		G = reorder_graph(G)
-		A = nx.to_numpy_matrix(G)
-
-		X = np.identity(dim)
-		As.append(A)
-		Xs.append(X)
-
-	return As, Xs
-
-def read_ego():
-	dim = FLAGS.max_dim
-	batch = FLAGS.training_size
-
-	As = []
-	Xs = []
-
-	for _ in range(batch):
-		#local_dim = np.random.randint(3,dim + 1)
-		local_dim = dim
-		G = nx.fast_gnp_random_graph(local_dim, 0.1)
-		H = nx.star_graph(local_dim - 1)
-		G = nx.compose(G,H)
-		G = reorder_graph(G)
-		A = nx.to_numpy_matrix(G)
-
 		X = np.identity(dim)
 		As.append(A)
 		Xs.append(X)

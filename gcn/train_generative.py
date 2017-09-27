@@ -17,9 +17,9 @@ from layers import *
 from format import *
 
 # Set random seed
-seed = 126
+#seed = 126
 #np.random.seed(seed)
-tf.set_random_seed(seed)
+#tf.set_random_seed(seed)
 
 # Settings
 flags = tf.app.flags
@@ -40,19 +40,14 @@ flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
 flags.DEFINE_boolean('save', False, 'Whether to save the plots of generated graphs')
 flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
 flags.DEFINE_boolean('all_permutations', True, 'Iterate over all possible permutations')
+flags.DEFINE_float('adj_mask', 0.2, 'Value in the adjacency matrix to denote an edge that has not yet been predicted')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
 elif FLAGS.dataset == "clintox":
     read_func = read_clintox
-elif FLAGS.dataset == "ego":
-    read_func = read_ego
-elif FLAGS.dataset == "star":
-    read_func = read_star
-elif FLAGS.dataset == "ring":
-    read_func = read_ring
-elif FLAGS.dataset == "bipartite":
-    read_func = read_bipartite
+else:
+    read_func = read_toy
 
 # Load data
 labels, A_norm, X, train_mask, val_mask, vertex_count, feature_count = load_generative_data(read_func)
@@ -124,24 +119,28 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 def is_accurate(G):
+    if G.order() == 0:
+        return 0
+
     if FLAGS.dataset == "ego":
         A = nx.to_numpy_matrix(G)
-        if G.order() == 0:
-            return 0
         np.fill_diagonal(A, 1)
         return np.max(np.min(A, 0))
     elif FLAGS.dataset == "star":
         H = nx.star_graph(G.order() - 1)
         return nx.is_isomorphic(G,H)
     elif FLAGS.dataset == "ring":
-        cycles = nx.cycle_basis(G)
         H = nx.cycle_graph(G.order())
+        return nx.is_isomorphic(G,H)
+    elif FLAGS.dataset == "lollipop":
+        H = nx.lollipop_graph(3, G.order() - 3)
         return nx.is_isomorphic(G,H)
     else:
         return 0
 
 def generate():
-    partial = np.zeros((vertex_count, vertex_count))
+    partial = np.zeros((vertex_count, vertex_count)) + FLAGS.adj_mask
+    np.fill_diagonal(partial, 0)
     partial_feature = np.zeros((1, vertex_count, feature_count))
     partial_norm = np.zeros((1, vertex_count, vertex_count))
 
@@ -154,7 +153,7 @@ def generate():
     while not q.empty():
         r = q.get()
         for c in range(vertex_count):
-            if hit_nodes[c] == 1:
+            if hit_nodes[c] == 1 or c == r:
                 continue
             partial_norm[0] = preprocess_adj(partial).todense()
             helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
@@ -171,6 +170,7 @@ def generate():
                 enqueued.add(c)
         hit_nodes[r] = 1
 
+    partial = np.rint(partial)
     G = nx.from_numpy_matrix(partial)
     G.remove_nodes_from(nx.isolates(G))
     return G
