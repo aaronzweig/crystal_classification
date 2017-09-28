@@ -62,7 +62,7 @@ def make_helper_features(dim, r, c, hit_nodes):
     return features
 
 def load_generative_data(read_func):
-    As, Xs = read_func()
+    As, Xs, dist = read_func()
     dim = FLAGS.max_dim
     batch = len(As)
     feature_count = Xs[0].shape[1]
@@ -75,6 +75,7 @@ def load_generative_data(read_func):
         temp = As[i]
         adj = np.zeros((dim, dim))
         adj[:temp.shape[0], :temp.shape[1]] = temp
+
         features = Xs[i]
         partial = np.zeros((dim, dim))
         hit_nodes = np.zeros(dim)
@@ -89,23 +90,38 @@ def load_generative_data(read_func):
             for c in range(dim):
                 if hit_nodes[c] == 1 or c == r:
                     continue
+
+                if FLAGS.dataset == "clintox":
+                    label = np.zeros(5)
+                else:
+                    label = np.zeros(2)
+
+                #Give the prospective graph, not the current one
                 partial[r,c] = partial[c,r] = 1
+
+
                 adj_norm = np.asarray(preprocess_adj(partial).todense())
-                label = adj[r,c]
+                label[int(adj[r,c])] = 1
                 helper_features = make_helper_features(dim, r, c, hit_nodes)
                 updated_feature = np.asarray(np.hstack((features, helper_features)))
+
+                perm = np.random.permutation(dim)
+                adj_norm = adj_norm[:,perm]
+                adj_norm = adj_norm[perm, :]
+                updated_feature = updated_feature[perm, :]
 
                 X.append(updated_feature)
                 A_norm.append(adj_norm)
                 labels.append(label)
 
-                partial[r,c] = partial[c,r] = label
-                if label == 1 and c not in enqueued:
+                if label[0] == 1:
+                    partial[r,c] = partial[c,r] = 0
+                if label[0] == 0 and c not in enqueued:
                     q.put(c)
                     enqueued.add(c)
             hit_nodes[r] = 1
 
-    labels = np.array(labels)
+    labels = np.vstack(tuple(labels))
     A_norm = np.dstack(tuple(A_norm))
     A_norm = np.transpose(A_norm, axes=(2, 0, 1))
     X = np.dstack(tuple(X))
@@ -116,7 +132,7 @@ def load_generative_data(read_func):
     train_mask = np.array(train_mask, dtype=np.bool)
     val_mask = np.array(val_mask, dtype=np.bool)
 
-    return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2]
+    return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2], dist
 
 
 def sparse_to_tuple(sparse_mx):

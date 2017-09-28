@@ -222,7 +222,7 @@ class GenerativeGCN(Model):
         self.input_dim = input_dim
         self.vertex_count = vertex_count
 
-        self.output_dim = 1
+        self.output_dim = int(placeholders["labels"].get_shape()[1])
         self.placeholders = placeholders
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
@@ -232,7 +232,7 @@ class GenerativeGCN(Model):
     def _loss(self):
 
         self.pred = tf.squeeze(tf.reduce_mean(self.outputs, 1))
-        self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.pred, labels=self.placeholders["labels"]))
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.pred, labels=self.placeholders["labels"]))
 
         for var in self.layers[0].vars.values():
             self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)

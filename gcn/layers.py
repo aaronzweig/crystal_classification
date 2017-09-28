@@ -254,9 +254,10 @@ class GenerativeGraphConvolution(Layer):
 
         with tf.variable_scope(self.name + '_vars'):
             self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
-            self.vars['weights2'] = glorot([input_dim, output_dim], name='weights')
+            self.vars['weights2'] = glorot([input_dim, output_dim], name='weights2')
             if self.bias:
                 self.vars['bias'] = zeros([output_dim], name='bias')
+                self.vars['bias2'] = zeros([output_dim], name='bias2')
 
         if self.logging:
             self._log_vars()
@@ -286,5 +287,6 @@ class GenerativeGraphConvolution(Layer):
         # bias
         if self.bias:
             output += self.vars['bias']
+            output2 += self.vars['bias2']
 
         return self.act(output, output2)

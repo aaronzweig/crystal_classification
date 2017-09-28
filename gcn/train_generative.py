@@ -48,14 +48,14 @@ else:
     read_func = read_toy
 
 # Load data
-labels, A_norm, X, train_mask, val_mask, vertex_count, feature_count = load_generative_data(read_func)
+labels, A_norm, X, train_mask, val_mask, vertex_count, feature_count, dist = load_generative_data(read_func)
 
 model_func = GenerativeGCN
 
 # Define placeholders
 
 placeholders = {
-    'labels': tf.placeholder(tf.float32, shape = None),
+    'labels': tf.placeholder(tf.float32, shape = (None, labels.shape[1])),
     'adj_norm': tf.placeholder(tf.float32, shape = (None, vertex_count, vertex_count)),
     'features': tf.placeholder(tf.float32, shape=(None, vertex_count, feature_count)),
     'dropout': tf.placeholder_with_default(0., shape=(), name = "drop"),
@@ -105,8 +105,7 @@ for epoch in range(FLAGS.epochs):
     outs = evaluate(X_v, labels_v, A_norm_v, placeholders, True)
     cost_train.append(outs)
 
-    if (epoch + 1) % 100 == 0:
-        print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs), "val_loss=", "{:.5f}".format(cost))
+    print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs), "val_loss=", "{:.5f}".format(cost))
 
     if epoch > FLAGS.early_stopping and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping+1):-1]):
         print("Early stopping...")
@@ -116,6 +115,10 @@ print("Optimization Finished!")
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
+
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
 
 def is_accurate(G):
     if G.order() == 0:
@@ -143,6 +146,16 @@ def generate():
     partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
     partial_norm = np.zeros((1, vertex_count, vertex_count))
+    dummy_label = np.zeros((1, 2))
+
+    atom_features = np.zeros((vertex_count, num_atom_features()))
+    bond_dic = {}
+
+    if FLAGS.dataset == "clintox":
+        dummy_label = np.zeros((1,5))
+        indices = random_indices(vertex_count, dist)
+        for index in indices:
+            atom_features[index] = 1
 
     hit_nodes = np.zeros(vertex_count)
     q = Queue.Queue()
@@ -155,24 +168,34 @@ def generate():
         for c in range(vertex_count):
             if hit_nodes[c] == 1 or c == r:
                 continue
+
             partial[r,c] = partial[c,r] = 1
             partial_norm[0] = preprocess_adj(partial).todense()
             helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
-            partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
-
-            feed_dict = construct_generative_feed_dict(partial_feature, -1, partial_norm, placeholders)
+            if FLAGS.dataset == "clintox":
+                partial_feature[0] = np.hstack((atom_features, np.identity(vertex_count), helper_features))
+            else:
+                partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
+            feed_dict = construct_generative_feed_dict(partial_feature, dummy_label, partial_norm, placeholders)
             pred = sess.run([model.pred], feed_dict=feed_dict)
-            pred = sigmoid(pred[0])
-            label = np.random.choice(2, p = [1-pred, pred])
+            pred = softmax(pred[0])
+            label = np.random.choice(len(pred), p = pred)
 
-            partial[r,c] = partial[c,r] = label
-            if label == 1 and c not in enqueued:
+            if label != 0:
+                bond_dic[(r,c)] = bond_dic[(c,r)] = label
+
+            if label == 0:
+                partial[r,c] = partial[c,r] = 0
+            if label != 0 and c not in enqueued:
                 q.put(c)
                 enqueued.add(c)
         hit_nodes[r] = 1
 
     partial = np.rint(partial)
     G = nx.from_numpy_matrix(partial)
+    if FLAGS.dataset == "clintox":
+        nx.set_node_attributes(G, "atom", get_atom_labels(atom_features))
+        nx.set_edge_attributes(G, "bond", bond_dic)
     G.remove_nodes_from(nx.isolates(G))
     return G
 
@@ -190,7 +213,14 @@ for i in range(20):
     plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
     plt.subplot(4, 5, i + 1)
     G = graphs[i]
-    nx.draw_networkx(G, pos=nx.spring_layout(G), node_size = 40, font_size=7)
+    labels = None
+    colors = None
+    if FLAGS.dataset == "clintox":
+        labels = nx.get_node_attributes(G, "atom")
+        colors = nx.get_edge_attributes(G, "bond")
+    pos = nx.spring_layout(G)
+    nx.draw_networkx(G, pos, labels = labels, node_size = 50, font_size=7)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=colors)
 
 plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
 title = FLAGS.dataset + str(vertex_count)

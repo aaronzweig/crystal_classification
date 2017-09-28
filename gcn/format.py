@@ -6,6 +6,11 @@ import csv
 import networkx as nx
 import matplotlib.pyplot as plt
 
+recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na',
+						'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
+						'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
+						'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
+						'Cr', 'Pt', 'Hg', 'Pb', 'Unknown']
 
 import tensorflow as tf
 flags = tf.app.flags
@@ -21,11 +26,6 @@ def one_of_k_encoding_unk(x, allowable_set):
     return map(lambda s: x == s, allowable_set)
 
 def atom_features(atom):
-	recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na',
-							'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
-							'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
-							'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
-							'Cr', 'Pt', 'Hg', 'Pb', 'Unknown']
 
 	return np.array(one_of_k_encoding_unk(atom.GetSymbol(), recognized_elements))
 
@@ -52,10 +52,20 @@ def num_bond_features():
 
 ##########################################################################
 
+def get_atom_labels(X):
+	dic = {}
+	for i in range(X.shape[0]):
+		index = list(X[i]).index(1)
+		dic[i] = recognized_elements[index]
+	return dic
+
 def smiles_to_graph(smiles):
 	mol = Chem.MolFromSmiles(smiles)
-	#mol = Chem.AddHs(mol)
-	A = Chem.rdmolops.GetAdjacencyMatrix(mol)
+	A = Chem.rdmolops.GetAdjacencyMatrix(mol, useBO = True)
+
+	A[np.where(A == 3)] = 4
+	A[np.where(A == 2)] = 3
+	A[np.where(A == 1.5)] = 2
 
 	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
 
@@ -64,14 +74,6 @@ def smiles_to_graph(smiles):
 		X[i,:] = atom_features(atom)
 
 	return A, X
-
-def pad(A, X, vertex_count):
-	new_A = np.zeros((vertex_count, vertex_count))
-	new_X = np.zeros((vertex_count, X.shape[1]))
-
-	new_A[:A.shape[0], :A.shape[1]] = A
-	new_X[:X.shape[0], :] = X
-	return new_A, new_X
 
 def reorder_graph(G):
 
@@ -84,13 +86,8 @@ def reorder_graph(G):
 
 	return nx.relabel_nodes(G, mapping)
 
-def read_clintox():
-	#hard-coded maximum vertex count specifically for the clintox dataset
-	VERTICES = 150
-
-	As = []
-	Xs = []
-	Cs = []
+def read_clintox_distribution():
+	dist = np.zeros(num_atom_features())
 
 	with open("clintox.csv", "rb") as f:
 		reader = csv.reader(f)
@@ -100,17 +97,47 @@ def read_clintox():
 
 			if Chem.MolFromSmiles(smiles) is not None:
 				A, X = smiles_to_graph(smiles)
-				A, X = pad(A, X, VERTICES)
-				X = np.hstack((X, np.identity(VERTICES)))
+				if A.shape[0] > 11:
+					continue
+
+				dist += np.sum(X, 0)
+
+	return dist * 1.0 / np.sum(dist)
+
+def random_indices(k, dist):
+	num = dist.size
+	samples = np.random.choice(num, k, p = dist)
+	indices = zip(range(k), samples)
+	return indices
+
+def read_clintox():
+	dim = FLAGS.max_dim
+	As = []
+	Xs = []
+	dist = read_clintox_distribution()
+
+	with open("clintox.csv", "rb") as f:
+		reader = csv.reader(f)
+		next(reader, None) #skip header
+		for row in reader:
+			smiles = row[0]
+
+			if Chem.MolFromSmiles(smiles) is not None:
+				A, X = smiles_to_graph(smiles)
+				if A.shape[0] > 11:
+					continue
+
+				Xpad = np.zeros((dim, X.shape[1]))
+				indices = random_indices(dim, dist)
+				for index in indices:
+					Xpad[index] = 1
+				Xpad[:X.shape[0], :X.shape[1]] = X
+				X = np.asarray(np.hstack((Xpad, np.identity(dim))))
+
 				As.append(A)
 				Xs.append(X)
-				Cs.append(int(row[1]))
 
-	C = np.zeros((len(Cs), 2))
-	for i in range(len(Cs)):
-		C[i,Cs[i]] = 1
-
-	return As, Xs, C
+	return As, Xs, dist
 
 
 def read_mutag():
@@ -161,7 +188,7 @@ def read_toy():
 	Xs = []
 
 	for i in range(batch):
-		local_dim = np.random.randint(6,dim + 1)
+		local_dim = np.random.randint(3,dim + 1)
 		if FLAGS.dataset == "star":
 			G = nx.star_graph(local_dim - 1)
 			G = reorder_graph(G)
@@ -182,4 +209,4 @@ def read_toy():
 		As.append(A)
 		Xs.append(X)
 
-	return As, Xs
+	return As, Xs, 0
