@@ -25,9 +25,9 @@ from format import *
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('epochs', 1000, 'Number of epochs to train.')
-flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2', 10, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('hidden3', 10, 'Number of units in hidden layer 3.')
+flags.DEFINE_integer('hidden1', 7, 'Number of units in hidden layer 1.')
+flags.DEFINE_integer('hidden2', 7, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('hidden3', 7, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0.001, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
@@ -65,7 +65,7 @@ placeholders = {
 # Create model
 model = model_func(placeholders, input_dim=feature_count, vertex_count = vertex_count, logging=True)
 
-
+os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 if FLAGS.gpu == -1:
     sess = tf.Session()
 else:
@@ -105,7 +105,8 @@ for epoch in range(FLAGS.epochs):
     outs = evaluate(X_v, labels_v, A_norm_v, placeholders, True)
     cost_train.append(outs)
 
-    print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs), "val_loss=", "{:.5f}".format(cost))
+    if (epoch + 1) % 100 == 0:
+        print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs), "val_loss=", "{:.5f}".format(cost))
 
     if epoch > FLAGS.early_stopping and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping+1):-1]):
         print("Early stopping...")
@@ -180,7 +181,7 @@ for i in range(100):
     graphs.append(generate())
 
 acc = [is_accurate(G) for G in graphs]
-print(np.mean(np.array(acc)))
+print(FLAGS.dataset + ": " + str(np.mean(np.array(acc))))
 
 if not FLAGS.plot:
     sys.exit()

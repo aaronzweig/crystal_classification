@@ -161,7 +161,7 @@ def read_toy():
 	Xs = []
 
 	for i in range(batch):
-		local_dim = np.random.randint(3,dim + 1)
+		local_dim = np.random.randint(6,dim + 1)
 		if FLAGS.dataset == "star":
 			G = nx.star_graph(local_dim - 1)
 			G = reorder_graph(G)

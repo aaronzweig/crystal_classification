@@ -103,8 +103,7 @@ class Dense(Layer):
         self.num_features_nonzero = placeholders['num_features_nonzero']
 
         with tf.variable_scope(self.name + '_vars'):
-            self.vars['weights'] = glorot([input_dim, output_dim],
-                                          name='weights')
+            self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
             if self.bias:
                 self.vars['bias'] = zeros([output_dim], name='bias')
 
@@ -255,6 +254,7 @@ class GenerativeGraphConvolution(Layer):
 
         with tf.variable_scope(self.name + '_vars'):
             self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
+            self.vars['weights2'] = glorot([input_dim, output_dim], name='weights')
             if self.bias:
                 self.vars['bias'] = zeros([output_dim], name='bias')
 
@@ -279,8 +279,12 @@ class GenerativeGraphConvolution(Layer):
         pre_sup = tf.reshape(pre_sup, [-1, vertex_count, output_dim])
         output = tf.matmul(self.adj_norm, pre_sup)
 
+        pre_sup = tf.matmul(x, self.vars['weights2'], a_is_sparse = self.first)
+        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, output_dim])
+        output2 = tf.matmul(self.adj_norm, pre_sup)
+
         # bias
         if self.bias:
             output += self.vars['bias']
 
-        return self.act(output)
+        return self.act(output, output2)

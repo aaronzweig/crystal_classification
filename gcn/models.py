@@ -7,6 +7,9 @@ from metrics import *
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
+def gated_act(a, b):
+    return tf.multiply(tf.nn.sigmoid(a), tf.nn.tanh(b))
+
 class Model(object):
     def __init__(self, **kwargs):
         allowed_kwargs = {'name', 'logging'}
@@ -244,7 +247,7 @@ class GenerativeGCN(Model):
         self.layers.append(GenerativeGraphConvolution(input_dim=self.input_dim,
                                             output_dim=FLAGS.hidden1,
                                             placeholders=self.placeholders,
-                                            act=tf.nn.relu,
+                                            act=gated_act,
                                             dropout=True,
                                             first=True,
                                             logging=self.logging))
@@ -252,13 +255,13 @@ class GenerativeGCN(Model):
         self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden1,
                                             output_dim=FLAGS.hidden2,
                                             placeholders=self.placeholders,
-                                            act=tf.nn.relu,
+                                            act=gated_act,
                                             dropout=True,
                                             logging=self.logging))
         self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden2,
                                             output_dim=FLAGS.hidden3,
                                             placeholders=self.placeholders,
-                                            act=tf.nn.relu,
+                                            act=gated_act,
                                             dropout=True,
                                             logging=self.logging))
         self.layers.append(Dense(input_dim=FLAGS.hidden3,
