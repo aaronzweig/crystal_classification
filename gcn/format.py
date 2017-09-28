@@ -80,8 +80,6 @@ def reorder_graph(G):
 	top = [root] + [b for (a,b) in nx.bfs_edges(G, root)]
 
 	order = [top.index(i) for i in range(dim)]
-	if FLAGS.all_permutations:
-		order = np.random.permutation(dim)
 	mapping = dict(zip(G.nodes(),order))
 
 	return nx.relabel_nodes(G, mapping)
@@ -163,7 +161,7 @@ def read_toy():
 	Xs = []
 
 	for i in range(batch):
-		local_dim = np.random.randint(4,dim + 1)
+		local_dim = np.random.randint(3,dim + 1)
 		if FLAGS.dataset == "star":
 			G = nx.star_graph(local_dim - 1)
 			G = reorder_graph(G)

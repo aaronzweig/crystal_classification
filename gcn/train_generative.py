@@ -24,23 +24,21 @@ from format import *
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('epochs', 500, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 1000, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 10, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3', 10, 'Number of units in hidden layer 3.')
-flags.DEFINE_float('dropout', 0.000, 'Dropout rate (1 - keep probability).')
-flags.DEFINE_float('learning_rate', 0.007, 'Initial learning rate.')
+flags.DEFINE_float('dropout', 0.001, 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 200, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
 flags.DEFINE_string('dataset', "ego", 'Name of dataset to load')
-flags.DEFINE_integer('max_dim', 6, 'Maximum vertex count of graph')
-flags.DEFINE_integer('training_size', 500, 'Number of training examples')
+flags.DEFINE_integer('max_dim', 12, 'Maximum vertex count of graph')
+flags.DEFINE_integer('training_size', 300, 'Number of training examples')
 flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
 flags.DEFINE_boolean('save', False, 'Whether to save the plots of generated graphs')
 flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
-flags.DEFINE_boolean('all_permutations', True, 'Iterate over all possible permutations')
-flags.DEFINE_float('adj_mask', 0.2, 'Value in the adjacency matrix to denote an edge that has not yet been predicted')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
@@ -133,14 +131,15 @@ def is_accurate(G):
         H = nx.cycle_graph(G.order())
         return nx.is_isomorphic(G,H)
     elif FLAGS.dataset == "lollipop":
+        if G.order() < 3:
+            return 0
         H = nx.lollipop_graph(3, G.order() - 3)
         return nx.is_isomorphic(G,H)
     else:
         return 0
 
 def generate():
-    partial = np.zeros((vertex_count, vertex_count)) + FLAGS.adj_mask
-    np.fill_diagonal(partial, 0)
+    partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
     partial_norm = np.zeros((1, vertex_count, vertex_count))
 
@@ -155,6 +154,7 @@ def generate():
         for c in range(vertex_count):
             if hit_nodes[c] == 1 or c == r:
                 continue
+            partial[r,c] = partial[c,r] = 1
             partial_norm[0] = preprocess_adj(partial).todense()
             helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
             partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
@@ -199,11 +199,11 @@ if FLAGS.save:
 plt.show()
 plt.close()
 
-plt.plot(cost_train)
-plt.plot(cost_val)
-plt.legend(['train', 'validation'], loc='upper left')
-if FLAGS.save:
-    plt.savefig("saved/" + title + " graph")
-plt.show()
-plt.close()
+# plt.plot(cost_train)
+# plt.plot(cost_val)
+# plt.legend(['train', 'validation'], loc='upper left')
+# if FLAGS.save:
+#     plt.savefig("saved/" + title + " graph")
+# plt.show()
+# plt.close()
 

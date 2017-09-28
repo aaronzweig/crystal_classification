@@ -76,8 +76,7 @@ def load_generative_data(read_func):
         adj = np.zeros((dim, dim))
         adj[:temp.shape[0], :temp.shape[1]] = temp
         features = Xs[i]
-        partial = np.zeros((dim, dim)) + FLAGS.adj_mask
-        np.fill_diagonal(partial, 0)
+        partial = np.zeros((dim, dim))
         hit_nodes = np.zeros(dim)
 
         q = Queue.Queue()
@@ -90,13 +89,14 @@ def load_generative_data(read_func):
             for c in range(dim):
                 if hit_nodes[c] == 1 or c == r:
                     continue
-                adj_norm = preprocess_adj(partial).todense()
+                partial[r,c] = partial[c,r] = 1
+                adj_norm = np.asarray(preprocess_adj(partial).todense())
                 label = adj[r,c]
                 helper_features = make_helper_features(dim, r, c, hit_nodes)
-                updated_feature = np.hstack((features, helper_features))
+                updated_feature = np.asarray(np.hstack((features, helper_features)))
 
-                X.append(np.asarray(updated_feature))
-                A_norm.append(np.asarray(adj_norm))
+                X.append(updated_feature)
+                A_norm.append(adj_norm)
                 labels.append(label)
 
                 partial[r,c] = partial[c,r] = label
