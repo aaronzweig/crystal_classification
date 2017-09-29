@@ -228,14 +228,16 @@ title = FLAGS.dataset + str(vertex_count)
 plt.suptitle(title)
 if FLAGS.save:
     plt.savefig("saved/" + title)
-plt.show()
+if FLAGS.plot:
+    plt.show()
 plt.close()
 
-# plt.plot(cost_train)
-# plt.plot(cost_val)
-# plt.legend(['train', 'validation'], loc='upper left')
-# if FLAGS.save:
-#     plt.savefig("saved/" + title + " graph")
-# plt.show()
-# plt.close()
+plt.plot(cost_train)
+plt.plot(cost_val)
+plt.legend(['train', 'validation'], loc='upper left')
+if FLAGS.save:
+    plt.savefig("saved/" + title + "_graph")
+if FLAGS.plot:
+    plt.show()
+plt.close()
 
