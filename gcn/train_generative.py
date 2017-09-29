@@ -39,6 +39,7 @@ flags.DEFINE_integer('training_size', 300, 'Number of training examples')
 flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
 flags.DEFINE_boolean('save', False, 'Whether to save the plots of generated graphs')
 flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
+flags.DEFINE_integer('batch_size', 30, 'size of each batch to gradient descent')
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
@@ -100,7 +101,10 @@ X_v, labels_v, A_norm_v = X[indices_v], labels[indices_v], A_norm[indices_v]
 
 # Train model
 for epoch in range(FLAGS.epochs):
-    cost = evaluate(X_t, labels_t, A_norm_t, placeholders, False)
+    offset = (epoch * FLAGS.batch_size) % (labels_t.shape[0] - FLAGS.batch_size)
+    indices = range(offset,(offset + FLAGS.batch_size))
+
+    cost = evaluate(X_t[indices], labels_t[indices], A_norm_t[indices], placeholders, False)
     cost_val.append(cost)
     outs = evaluate(X_v, labels_v, A_norm_v, placeholders, True)
     cost_train.append(outs)
@@ -169,7 +173,6 @@ def generate():
             if hit_nodes[c] == 1 or c == r:
                 continue
 
-            partial[r,c] = partial[c,r] = 1
             partial_norm[0] = preprocess_adj(partial).todense()
             helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
             if FLAGS.dataset == "clintox":
@@ -183,9 +186,7 @@ def generate():
 
             if label != 0:
                 bond_dic[(r,c)] = bond_dic[(c,r)] = label
-
-            if label == 0:
-                partial[r,c] = partial[c,r] = 0
+                partial[r,c] = partial[c,r] = 1
             if label != 0 and c not in enqueued:
                 q.put(c)
                 enqueued.add(c)

@@ -13,19 +13,7 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 
-def parse_index_file(filename):
-    """Parse index file."""
-    index = []
-    for line in open(filename):
-        index.append(int(line.strip()))
-    return index
 
-
-def sample_mask(idx, l):
-    """Create mask."""
-    mask = np.zeros(l)
-    mask[idx] = 1
-    return np.array(mask, dtype=np.bool)
 
 def load_global_data(read_func):
     As, Xs, labels = read_func()
@@ -96,9 +84,6 @@ def load_generative_data(read_func):
                 else:
                     label = np.zeros(2)
 
-                #Give the prospective graph, not the current one
-                partial[r,c] = partial[c,r] = 1
-
 
                 adj_norm = np.asarray(preprocess_adj(partial).todense())
                 label[int(adj[r,c])] = 1
@@ -114,8 +99,7 @@ def load_generative_data(read_func):
                 A_norm.append(adj_norm)
                 labels.append(label)
 
-                if label[0] == 1:
-                    partial[r,c] = partial[c,r] = 0
+                partial[r,c] = partial[c,r] = list(label).index(1)
                 if label[0] == 0 and c not in enqueued:
                     q.put(c)
                     enqueued.add(c)
