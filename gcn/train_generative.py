@@ -7,7 +7,7 @@ import time
 import tensorflow as tf
 import matplotlib
 matplotlib.use('agg')
-import pyplot as plt
+import matplotlib.pyplot as plt
 
 from gcn.utils import *
 from gcn.models import *
