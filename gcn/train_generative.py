@@ -223,7 +223,7 @@ for i in range(20):
     nx.draw_networkx(G, pos, labels = labels, node_size = 50, font_size=7)
     nx.draw_networkx_edge_labels(G, pos, edge_labels=colors)
 
-plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+# plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
 title = FLAGS.dataset + str(vertex_count)
 plt.suptitle(title)
 if FLAGS.save:
