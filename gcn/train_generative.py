@@ -5,8 +5,9 @@ import os
 
 import time
 import tensorflow as tf
-
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('agg')
+import pyplot as plt
 
 from gcn.utils import *
 from gcn.models import *
@@ -211,7 +212,7 @@ if not FLAGS.plot and not FLAGS.save:
     sys.exit()
 
 for i in range(20):
-    # plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
     plt.subplot(4, 5, i + 1)
     G = graphs[i]
     labels = None
@@ -223,7 +224,7 @@ for i in range(20):
     nx.draw_networkx(G, pos, labels = labels, node_size = 50, font_size=7)
     nx.draw_networkx_edge_labels(G, pos, edge_labels=colors)
 
-# plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
 title = FLAGS.dataset + str(vertex_count)
 plt.suptitle(title)
 if FLAGS.save:
