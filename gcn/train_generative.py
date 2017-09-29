@@ -207,7 +207,7 @@ for i in range(100):
 acc = [is_accurate(G) for G in graphs]
 print(FLAGS.dataset + ": " + str(np.mean(np.array(acc))))
 
-if not FLAGS.plot:
+if not FLAGS.plot and not FLAGS.save:
     sys.exit()
 
 for i in range(20):
