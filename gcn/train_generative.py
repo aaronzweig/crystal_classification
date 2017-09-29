@@ -211,7 +211,7 @@ if not FLAGS.plot and not FLAGS.save:
     sys.exit()
 
 for i in range(20):
-    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+    # plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
     plt.subplot(4, 5, i + 1)
     G = graphs[i]
     labels = None
