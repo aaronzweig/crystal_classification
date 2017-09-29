@@ -60,6 +60,8 @@ def load_generative_data(read_func):
     X = []
 
     for i in range(batch):
+        if i % (batch/100):
+            print(str(i) + "/" + str(batch))
         temp = As[i]
         adj = np.zeros((dim, dim))
         adj[:temp.shape[0], :temp.shape[1]] = temp
