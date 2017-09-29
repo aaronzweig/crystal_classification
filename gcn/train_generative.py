@@ -45,7 +45,7 @@ flags.DEFINE_integer('batch_size', 30, 'size of each batch to gradient descent')
 if FLAGS.dataset == "mutag":
     read_func = read_mutag
 elif FLAGS.dataset == "clintox":
-    read_func = read_clintox
+    read_func = read_zinc
 else:
     read_func = read_toy
 
@@ -222,7 +222,8 @@ for i in range(20):
         colors = nx.get_edge_attributes(G, "bond")
     pos = nx.spring_layout(G)
     nx.draw_networkx(G, pos, labels = labels, node_size = 50, font_size=7)
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=colors)
+    # nx.draw_networkx_edge_labels(G, pos, edge_labels=colors)
+    # need to represent edge labels legibly
 
 plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
 title = FLAGS.dataset + str(vertex_count)

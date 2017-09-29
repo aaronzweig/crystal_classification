@@ -101,7 +101,7 @@ def load_generative_data(read_func):
                 A_norm.append(adj_norm)
                 labels.append(label)
 
-                partial[r,c] = partial[c,r] = list(label).index(1)
+                partial[r,c] = partial[c,r] = 0 if int(adj[r,c]) == 0 else 1
                 if label[0] == 0 and c not in enqueued:
                     q.put(c)
                     enqueued.add(c)

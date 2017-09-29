@@ -210,3 +210,36 @@ def read_toy():
 		Xs.append(X)
 
 	return As, Xs, 0
+
+def read_zinc():
+	dim = FLAGS.max_dim
+	As = []
+	Xs = []
+	dist = dist = np.zeros(num_atom_features())
+	dist[-1] = 1
+
+	count = 0
+
+	with open("13_p0.smi") as f:
+		for line in f:
+			smiles = line.split()[0]
+			if Chem.MolFromSmiles(smiles) is not None:
+				A, X = smiles_to_graph(smiles)
+				if A.shape[0] > dim:
+					continue
+
+				Xpad = np.zeros((dim, X.shape[1]))
+				indices = random_indices(dim, dist)
+				for index in indices:
+					Xpad[index] = 1
+				Xpad[:X.shape[0], :X.shape[1]] = X
+				X = np.asarray(np.hstack((Xpad, np.identity(dim))))
+
+				As.append(A)
+				Xs.append(X)
+
+				count += 1
+				if count > 50000:
+					break
+
+	return As, Xs, dist
