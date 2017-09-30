@@ -205,6 +205,7 @@ def read_toy():
 
 def read_zinc():
 	dim = 20
+
 	As = []
 	Xs = []
 
@@ -230,5 +231,3 @@ def read_zinc():
         			break
 
 	return As, Xs, dim
-
-read_zinc()
