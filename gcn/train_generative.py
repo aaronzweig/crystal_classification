@@ -5,9 +5,7 @@ import os
 
 import time
 import tensorflow as tf
-import matplotlib
-#matplotlib.use('agg')
-import matplotlib.pyplot as plt
+
 
 from gcn.utils import *
 from gcn.models import *
@@ -42,6 +40,11 @@ flags.DEFINE_boolean('plot', False, 'Whether to plot generated graphs')
 flags.DEFINE_boolean('save', False, 'Whether to save the plots of generated graphs')
 flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
 flags.DEFINE_integer('batch_size', 30, 'size of each batch to gradient descent')
+
+import matplotlib
+if FLAGS.gpu != -1:
+    matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 if FLAGS.dataset == "mutag":
     read_func = read_mutag

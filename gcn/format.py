@@ -225,8 +225,6 @@ def read_zinc():
         		As.append(Apad)
         		Xs.append(Xpad)
 
-        		if len(As) >= 100:
-        			break
 	return As, Xs, dim
 
 read_zinc()
