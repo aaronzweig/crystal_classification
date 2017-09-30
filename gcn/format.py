@@ -52,13 +52,6 @@ def num_bond_features():
 
 ##########################################################################
 
-def get_atom_labels(X):
-	dic = {}
-	for i in range(X.shape[0]):
-		index = list(X[i]).index(1)
-		dic[i] = recognized_elements[index]
-	return dic
-
 def smiles_to_graph(smiles):
 	mol = Chem.MolFromSmiles(smiles)
 	A = Chem.rdmolops.GetAdjacencyMatrix(mol, useBO = True)
@@ -137,7 +130,7 @@ def read_clintox():
 				As.append(A)
 				Xs.append(X)
 
-	return As, Xs, dist
+	return As, Xs, dim
 
 
 def read_mutag():
@@ -209,14 +202,12 @@ def read_toy():
 		As.append(A)
 		Xs.append(X)
 
-	return As, Xs, 0
+	return As, Xs, dim
 
 def read_zinc():
 	dim = 20
 	As = []
 	Xs = []
-	dist = dist = np.zeros(num_atom_features())
-	dist[-1] = 1
 
 	with open("50_k.smi") as f:
 		for line in f:
@@ -224,15 +215,18 @@ def read_zinc():
 			if Chem.MolFromSmiles(smiles) is not None:
 				A, X = smiles_to_graph(smiles)
 
-				Xpad = np.zeros((dim, X.shape[1]))
-				indices = random_indices(dim, dist)
-				for index in indices:
-					Xpad[index] = 1
-				Xpad[:X.shape[0], :X.shape[1]] = X
-				X = np.asarray(np.hstack((Xpad, np.identity(dim))))
+        		Apad = np.zeros((dim, dim))
+        		Apad[:A.shape[0], :A.shape[1]] = A
 
-				As.append(A)
-				Xs.append(X)
-	return As, Xs, dist
+        		Xpad = np.zeros((dim, X.shape[1]))
+        		Xpad[:, -1] = 1
+        		Xpad[:X.shape[0], :X.shape[1]] = X
+
+        		As.append(Apad)
+        		Xs.append(Xpad)
+
+        		if len(As) >= 100:
+        			break
+	return As, Xs, dim
 
 read_zinc()

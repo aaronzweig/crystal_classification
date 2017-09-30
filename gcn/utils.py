@@ -50,8 +50,12 @@ def make_helper_features(dim, r, c, hit_nodes):
     return features
 
 def load_generative_data(read_func):
-    As, Xs, dist = read_func()
-    dim = FLAGS.max_dim
+    As, Xs, dim = read_func()
+    A_test = As[:FLAGS.test]
+    X_test = Xs[:FLAGS.test]
+    As = As[FLAGS.test:]
+    Xs = Xs[FLAGS.test:]
+
     batch = len(As)
     feature_count = Xs[0].shape[1]
 
@@ -62,9 +66,7 @@ def load_generative_data(read_func):
     for i in range(batch):
         if i % (batch / 10) == 0:
             print(str(i) + "/" + str(batch))
-        temp = As[i]
-        adj = np.zeros((dim, dim))
-        adj[:temp.shape[0], :temp.shape[1]] = temp
+        adj = As[i]
 
         features = Xs[i]
         partial = np.zeros((dim, dim))
@@ -81,21 +83,15 @@ def load_generative_data(read_func):
                 if hit_nodes[c] == 1 or c == r:
                     continue
 
-                if FLAGS.dataset == "clintox":
-                    label = np.zeros(5)
-                else:
-                    label = np.zeros(2)
-
+                label = np.zeros(5)
 
                 adj_norm = np.asarray(preprocess_adj(partial).todense())
                 label[int(adj[r,c])] = 1
                 helper_features = make_helper_features(dim, r, c, hit_nodes)
-                updated_feature = np.asarray(np.hstack((features, helper_features)))
+                updated_feature = np.asarray(np.hstack((features, np.identity(dim), helper_features)))
 
                 perm = np.random.permutation(dim)
-                adj_norm = adj_norm[:,perm]
                 adj_norm = adj_norm[perm, :]
-                updated_feature = updated_feature[perm, :]
 
                 X.append(updated_feature)
                 A_norm.append(adj_norm)
@@ -113,12 +109,14 @@ def load_generative_data(read_func):
     X = np.dstack(tuple(X))
     X = np.transpose(X, axes=(2, 0, 1))
 
+    if FLAGS.validation == -1:
+        FLAGS.validation = FLAGS.batch_size * 1.0 / X.shape[0]
     train_mask = np.random.choice(2, X.shape[0], p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)
     val_mask = np.array(val_mask, dtype=np.bool)
 
-    return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2], dist
+    return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2], A_test, X_test
 
 
 def sparse_to_tuple(sparse_mx):

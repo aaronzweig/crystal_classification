@@ -6,7 +6,7 @@ import os
 import time
 import tensorflow as tf
 import matplotlib
-matplotlib.use('agg')
+#matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from gcn.utils import *
@@ -34,6 +34,7 @@ flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 200, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
+flags.DEFINE_integer('test', 5, "Number of molecules to holdout for full generation testing")
 flags.DEFINE_string('dataset', "ego", 'Name of dataset to load')
 flags.DEFINE_integer('max_dim', 12, 'Maximum vertex count of graph')
 flags.DEFINE_integer('training_size', 300, 'Number of training examples')
@@ -50,7 +51,7 @@ else:
     read_func = read_toy
 
 # Load data
-labels, A_norm, X, train_mask, val_mask, vertex_count, feature_count, dist = load_generative_data(read_func)
+labels, A_norm, X, train_mask, val_mask, vertex_count, feature_count, A_test, X_test = load_generative_data(read_func)
 
 model_func = GenerativeGCN
 
@@ -147,20 +148,23 @@ def is_accurate(G):
     else:
         return 0
 
-def generate():
+def build_molecule_graph(A, X):
+    G = nx.from_numpy_matrix(A)
+    node_labels = {}
+    for i in range(X.shape[0]):
+        index = list(X[i]).index(1)
+        node_labels[i] = recognized_elements[index]
+    nx.set_node_attributes(G, "atom", node_labels)
+    G.remove_nodes_from(nx.isolates(G))
+    return G
+
+
+def generate(X):
     partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
     partial_norm = np.zeros((1, vertex_count, vertex_count))
-    dummy_label = np.zeros((1, 2))
-
-    atom_features = np.zeros((vertex_count, num_atom_features()))
+    dummy_label = np.zeros((1, 5))
     bond_dic = {}
-
-    if FLAGS.dataset == "clintox":
-        dummy_label = np.zeros((1,5))
-        indices = random_indices(vertex_count, dist)
-        for index in indices:
-            atom_features[index] = 1
 
     hit_nodes = np.zeros(vertex_count)
     q = Queue.Queue()
@@ -176,10 +180,7 @@ def generate():
 
             partial_norm[0] = preprocess_adj(partial).todense()
             helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
-            if FLAGS.dataset == "clintox":
-                partial_feature[0] = np.hstack((atom_features, np.identity(vertex_count), helper_features))
-            else:
-                partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
+            partial_feature[0] = np.hstack((X, np.identity(vertex_count), helper_features))
             feed_dict = construct_generative_feed_dict(partial_feature, dummy_label, partial_norm, placeholders)
             pred = sess.run([model.pred], feed_dict=feed_dict)
             pred = softmax(pred[0])
@@ -193,49 +194,37 @@ def generate():
                 enqueued.add(c)
         hit_nodes[r] = 1
 
-    partial = np.rint(partial)
-    G = nx.from_numpy_matrix(partial)
-    if FLAGS.dataset == "clintox":
-        nx.set_node_attributes(G, "atom", get_atom_labels(atom_features))
-        nx.set_edge_attributes(G, "bond", bond_dic)
-    G.remove_nodes_from(nx.isolates(G))
+    G = build_molecule_graph(partial, X)
     return G
-
-graphs = []
-for i in range(100):
-    graphs.append(generate())
-
-acc = [is_accurate(G) for G in graphs]
-print(FLAGS.dataset + ": " + str(np.mean(np.array(acc))))
 
 if not FLAGS.plot and not FLAGS.save:
     sys.exit()
 
-for i in range(20):
+count = 0
+for A, X in zip(A_test, X_test):
+    real = build_molecule_graph(A, X)
+    pred = generate(X)
+    plt.subplot(1, 2, 1)
     plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
-    plt.subplot(4, 5, i + 1)
-    G = graphs[i]
-    labels = None
-    colors = None
-    if FLAGS.dataset == "clintox":
-        labels = nx.get_node_attributes(G, "atom")
-        colors = nx.get_edge_attributes(G, "bond")
-    pos = nx.spring_layout(G)
-    nx.draw_networkx(G, pos, labels = labels, node_size = 50, font_size=7)
-    # nx.draw_networkx_edge_labels(G, pos, edge_labels=colors)
-    # need to represent edge labels legibly
+    labels = nx.get_node_attributes(real, "atom")
+    nx.draw_networkx(real, labels = labels, node_size = 50, font_size=7)
+    plt.subplot(1, 2, 2)
+    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+    labels = nx.get_node_attributes(pred, "atom")
+    nx.draw_networkx(pred, labels = labels, node_size = 50, font_size=7)
+    count += 1
 
-plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
-title = FLAGS.dataset + str(vertex_count)
-plt.suptitle(title)
-if FLAGS.save:
-    plt.savefig("saved/" + title)
-if FLAGS.plot:
-    plt.show()
-plt.close()
 
-plt.plot(cost_train)
+    title = FLAGS.dataset + str(count)
+    plt.suptitle(title)
+    if FLAGS.save:
+        plt.savefig("saved/" + title)
+    if FLAGS.plot:
+        plt.show()
+    plt.close()
+
 plt.plot(cost_val)
+plt.plot(cost_train)
 plt.legend(['train', 'validation'], loc='upper left')
 if FLAGS.save:
     plt.savefig("saved/" + title + "_graph")
