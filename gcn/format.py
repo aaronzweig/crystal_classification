@@ -4,7 +4,6 @@ from scipy.sparse import csr_matrix, hstack, identity
 from rdkit import Chem
 import csv
 import networkx as nx
-import matplotlib.pyplot as plt
 
 recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na',
 						'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
