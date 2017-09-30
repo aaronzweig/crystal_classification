@@ -208,6 +208,7 @@ def read_zinc():
 	As = []
 	Xs = []
 
+	count = 0
 	with open("50_k.smi") as f:
 		for line in f:
 			smiles = line.split()[0]
@@ -223,6 +224,10 @@ def read_zinc():
 
         		As.append(Apad)
         		Xs.append(Xpad)
+
+        		count += 1
+        		if count >= FLAGS.training_size:
+        			break
 
 	return As, Xs, dim
 
