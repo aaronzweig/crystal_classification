@@ -68,8 +68,12 @@ def smiles_to_graph(smiles):
 	return A, X
 
 def reorder_graph(G):
-
 	dim = G.order()
+
+	rand = np.random.permutation(dim)
+	mapping = dict(zip(G.nodes(),rand))
+	G = nx.relabel_nodes(G, mapping)
+
 	root = np.random.randint(dim)
 	top = [root] + [b for (a,b) in nx.bfs_edges(G, root)]
 
@@ -77,6 +81,23 @@ def reorder_graph(G):
 	mapping = dict(zip(G.nodes(),order))
 
 	return nx.relabel_nodes(G, mapping)
+
+def build_molecule_graph(A, X):
+    G = nx.from_numpy_matrix(A)
+    node_labels = {}
+    for i in range(X.shape[0]):
+        index = list(X[i]).index(1)
+        node_labels[i] = recognized_elements[index]
+    nx.set_node_attributes(G, "atom", node_labels)
+    G.remove_nodes_from(nx.isolates(G))
+    return G
+
+def build_molecule_matrix(G):
+	A = nx.to_numpy_matrix(G)
+	X = np.zeros((A.shape[0], num_atom_features()))
+	for i in range(X.shape[0]):
+		X[i, :] = one_of_k_encoding_unk(nx.get_node_attributes(G, "atom")[i], recognized_elements)
+	return A, X
 
 def read_clintox_distribution():
 	dist = np.zeros(num_atom_features())
@@ -197,9 +218,11 @@ def read_toy():
 			G = reorder_graph(G)
 
 		A = nx.to_numpy_matrix(G)
-		X = np.identity(dim)
-		As.append(A)
-		Xs.append(X)
+
+		Apad = np.zeros((dim, dim))
+		Apad[:A.shape[0], :A.shape[1]] = A
+		As.append(Apad)
+		Xs.append(0)
 
 	return As, Xs, dim
 
@@ -215,12 +238,16 @@ def read_zinc():
 			smiles = line.split()[0]
 			if Chem.MolFromSmiles(smiles) is not None:
 				A, X = smiles_to_graph(smiles)
+				G = build_molecule_graph(A, X)
+				G = reorder_graph(G)
+				A, X = build_molecule_matrix(G)
+
 
         		Apad = np.zeros((dim, dim))
         		Apad[:A.shape[0], :A.shape[1]] = A
 
         		Xpad = np.zeros((dim, X.shape[1]))
-        		Xpad[:, -1] = 1
+        		Xpad[:, -1] = 1 #remaining nodes are deemed unknown
         		Xpad[:X.shape[0], :X.shape[1]] = X
 
         		As.append(Apad)

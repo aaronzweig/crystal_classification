@@ -151,16 +151,42 @@ def is_accurate(G):
     else:
         return 0
 
-def build_molecule_graph(A, X):
-    G = nx.from_numpy_matrix(A)
-    node_labels = {}
-    for i in range(X.shape[0]):
-        index = list(X[i]).index(1)
-        node_labels[i] = recognized_elements[index]
-    nx.set_node_attributes(G, "atom", node_labels)
+def toy_generate():
+    partial = np.zeros((vertex_count, vertex_count))
+    partial_feature = np.zeros((1, vertex_count, feature_count))
+    partial_norm = np.zeros((1, vertex_count, vertex_count))
+    dummy_label = np.zeros((1, 2))
+
+    hit_nodes = np.zeros(vertex_count)
+    q = Queue.Queue()
+    enqueued = set()
+    q.put(0)
+    enqueued.add(0)
+
+    while not q.empty():
+        r = q.get()
+        for c in range(vertex_count):
+            if hit_nodes[c] == 1 or c == r:
+                continue
+
+            partial_norm[0] = preprocess_adj(partial).todense()
+            helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
+            partial_feature[0] = np.hstack((np.identity(vertex_count), helper_features))
+            feed_dict = construct_generative_feed_dict(partial_feature, dummy_label, partial_norm, placeholders)
+            pred = sess.run([model.pred], feed_dict=feed_dict)
+            pred = softmax(pred[0])
+            label = np.random.choice(len(pred), p = pred)
+
+            if label != 0:
+                partial[r,c] = partial[c,r] = 1
+            if label != 0 and c not in enqueued:
+                q.put(c)
+                enqueued.add(c)
+        hit_nodes[r] = 1
+
+    G = nx.from_numpy_matrix(partial)
     G.remove_nodes_from(nx.isolates(G))
     return G
-
 
 def generate(X):
     partial = np.zeros((vertex_count, vertex_count))
@@ -200,6 +226,11 @@ def generate(X):
     G = build_molecule_graph(partial, X)
     return G
 
+if FLAGS.dataset != "clintox":
+    acc = [is_accurate(toy_generate()) for i in range(100)]
+    print (np.mean(np.array(acc)))
+
+
 if not FLAGS.plot and not FLAGS.save:
     sys.exit()
 
@@ -228,7 +259,7 @@ for A, X in zip(A_test, X_test):
 
 plt.plot(cost_val)
 plt.plot(cost_train)
-plt.legend(['train', 'validation'], loc='upper left')
+plt.legend(['validation', 'train'], loc='upper left')
 if FLAGS.save:
     plt.savefig("saved/" + title + "_graph")
 if FLAGS.plot:

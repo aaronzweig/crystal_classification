@@ -57,7 +57,6 @@ def load_generative_data(read_func):
     Xs = Xs[FLAGS.test:]
 
     batch = len(As)
-    feature_count = Xs[0].shape[1]
 
     labels = []
     A_norm = []
@@ -83,15 +82,23 @@ def load_generative_data(read_func):
                 if hit_nodes[c] == 1 or c == r:
                     continue
 
-                label = np.zeros(5)
+                if FLAGS.dataset == "clintox":
+                    label = np.zeros(5)
+                else:
+                    label = np.zeros(2)
 
                 adj_norm = np.asarray(preprocess_adj(partial).todense())
                 label[int(adj[r,c])] = 1
                 helper_features = make_helper_features(dim, r, c, hit_nodes)
-                updated_feature = np.asarray(np.hstack((features, np.identity(dim), helper_features)))
 
                 perm = np.random.permutation(dim)
-                adj_norm = adj_norm[perm, :]
+                perm_identity = np.identity(dim)
+                # perm_identity[:, perm] = perm_identity
+                if FLAGS.dataset == "clintox":
+                    updated_feature = np.asarray(np.hstack((features, perm_identity, helper_features)))
+                else:
+                    updated_feature = np.asarray(np.hstack((perm_identity, helper_features)))
+                # adj_norm = adj_norm[perm, :]
 
                 X.append(updated_feature)
                 A_norm.append(adj_norm)
