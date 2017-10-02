@@ -9,7 +9,7 @@ recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'N
 						'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
 						'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
 						'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
-						'Cr', 'Pt', 'Hg', 'Pb', 'Unknown']
+						'Cr', 'Pt', 'Hg', 'Pb', 'Dummy', 'Unknown']
 
 import tensorflow as tf
 flags = tf.app.flags
@@ -53,11 +53,11 @@ def num_bond_features():
 
 def smiles_to_graph(smiles):
 	mol = Chem.MolFromSmiles(smiles)
-	A = Chem.rdmolops.GetAdjacencyMatrix(mol, useBO = True)
+	A = Chem.rdmolops.GetAdjacencyMatrix(mol, useBO = False)
 
-	A[np.where(A == 3)] = 4
-	A[np.where(A == 2)] = 3
-	A[np.where(A == 1.5)] = 2
+	# A[np.where(A == 3)] = 4
+	# A[np.where(A == 2)] = 3
+	# A[np.where(A == 1.5)] = 2
 
 	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
 
@@ -247,7 +247,7 @@ def read_zinc():
         		Apad[:A.shape[0], :A.shape[1]] = A
 
         		Xpad = np.zeros((dim, X.shape[1]))
-        		Xpad[:, -1] = 1 #remaining nodes are deemed unknown
+        		Xpad[:, -2] = 1 #remaining nodes are deemed dummy
         		Xpad[:X.shape[0], :X.shape[1]] = X
 
         		As.append(Apad)

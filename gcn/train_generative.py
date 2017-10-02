@@ -32,7 +32,7 @@ flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 200, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
-flags.DEFINE_integer('test', 5, "Number of molecules to holdout for full generation testing")
+flags.DEFINE_integer('test', 3, "Number of molecules to holdout for full generation testing")
 flags.DEFINE_string('dataset', "ego", 'Name of dataset to load')
 flags.DEFINE_integer('max_dim', 12, 'Maximum vertex count of graph')
 flags.DEFINE_integer('training_size', 300, 'Number of training examples')
@@ -151,6 +151,35 @@ def is_accurate(G):
     else:
         return 0
 
+def link_acc(As, Xs):
+    pos = []
+    neg = []
+    for A, X in zip(As, Xs):
+        for r in range(A.shape[0]):
+            for c in range(r):
+                partial = np.copy(A)
+                partial[r,c] = 0
+                partial_norm = np.zeros((1, vertex_count, vertex_count))
+                partial_norm[0] = preprocess_adj(partial).todense()
+                dummy_label = np.zeros((1,2))
+                hit_nodes = np.zeros(vertex_count) + 1
+                hit_nodes[r] = hit_nodes[c] = 0
+                helper_features = make_helper_features(vertex_count, r, c, hit_nodes)
+                partial_feature = np.zeros((1, vertex_count, feature_count))
+                partial_feature[0] = np.hstack((X, np.identity(vertex_count), helper_features))
+
+                feed_dict = construct_generative_feed_dict(partial_feature, dummy_label, partial_norm, placeholders)
+                pred = sess.run([model.pred], feed_dict=feed_dict)
+                pred = softmax(pred[0])
+                label = np.random.choice(len(pred), p = pred)
+
+                point = 1.0 if label == A[r,c] else 0.0
+                if A[r,c] == 1:
+                    pos.append(point)
+                else:
+                    neg.append(point)
+    return (np.mean(np.array(pos)), np.mean(np.array(neg)))
+
 def toy_generate():
     partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
@@ -192,7 +221,7 @@ def generate(X):
     partial = np.zeros((vertex_count, vertex_count))
     partial_feature = np.zeros((1, vertex_count, feature_count))
     partial_norm = np.zeros((1, vertex_count, vertex_count))
-    dummy_label = np.zeros((1, 5))
+    dummy_label = np.zeros((1, 2))
     bond_dic = {}
 
     hit_nodes = np.zeros(vertex_count)
@@ -229,27 +258,31 @@ def generate(X):
 if FLAGS.dataset != "clintox":
     acc = [is_accurate(toy_generate()) for i in range(100)]
     print (np.mean(np.array(acc)))
-
+else:
+    print(link_acc(A_test[:FLAGS.test], X_test[:FLAGS.test]))
+    print(link_acc(A_test[FLAGS.test:], X_test[FLAGS.test:]))
 
 if not FLAGS.plot and not FLAGS.save:
     sys.exit()
 
-count = 0
-for A, X in zip(A_test, X_test):
+def plot_graph(G, i):
+    G.remove_nodes_from(nx.isolates(G))
+    plt.subplot(2, 3, i)
+    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+    labels = nx.get_node_attributes(G, "atom")
+    nx.draw_networkx(G, labels = labels, node_size = 50, font_size=7)
+
+for i in range(2 * FLAGS.test):
+    A = A_test[i]
+    X = X_test[i]
     real = build_molecule_graph(A, X)
-    pred = generate(X)
-    plt.subplot(1, 2, 1)
-    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
-    labels = nx.get_node_attributes(real, "atom")
-    nx.draw_networkx(real, labels = labels, node_size = 50, font_size=7)
-    plt.subplot(1, 2, 2)
-    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
-    labels = nx.get_node_attributes(pred, "atom")
-    nx.draw_networkx(pred, labels = labels, node_size = 50, font_size=7)
-    count += 1
+    plot_graph(real, 1)
+    for j in range(2, 7):
+        pred = generate(X)
+        plot_graph(pred, j)
 
-
-    title = FLAGS.dataset + str(count)
+    title = FLAGS.dataset + str(i)
+    title += "test" if i < FLAGS.test else "train"
     plt.suptitle(title)
     if FLAGS.save:
         plt.savefig("saved/" + title)

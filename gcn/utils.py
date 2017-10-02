@@ -5,6 +5,7 @@ import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import Queue
+import pickle
 
 import format
 
@@ -51,8 +52,8 @@ def make_helper_features(dim, r, c, hit_nodes):
 
 def load_generative_data(read_func):
     As, Xs, dim = read_func()
-    A_test = As[:FLAGS.test]
-    X_test = Xs[:FLAGS.test]
+    A_test = As[:2*FLAGS.test]
+    X_test = Xs[:2*FLAGS.test]
     As = As[FLAGS.test:]
     Xs = Xs[FLAGS.test:]
 
@@ -83,7 +84,7 @@ def load_generative_data(read_func):
                     continue
 
                 if FLAGS.dataset == "clintox":
-                    label = np.zeros(5)
+                    label = np.zeros(2)
                 else:
                     label = np.zeros(2)
 
@@ -93,12 +94,12 @@ def load_generative_data(read_func):
 
                 perm = np.random.permutation(dim)
                 perm_identity = np.identity(dim)
-                # perm_identity[:, perm] = perm_identity
+                perm_identity[:, perm] = perm_identity
                 if FLAGS.dataset == "clintox":
                     updated_feature = np.asarray(np.hstack((features, perm_identity, helper_features)))
                 else:
                     updated_feature = np.asarray(np.hstack((perm_identity, helper_features)))
-                # adj_norm = adj_norm[perm, :]
+                adj_norm = adj_norm[perm, :]
 
                 X.append(updated_feature)
                 A_norm.append(adj_norm)
