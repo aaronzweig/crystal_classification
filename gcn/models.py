@@ -7,14 +7,12 @@ from metrics import *
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-def gated_act(a, b):
-    return tf.multiply(tf.nn.sigmoid(a), tf.nn.tanh(b))
-
 class Model(object):
     def __init__(self, **kwargs):
         allowed_kwargs = {'name', 'logging'}
         for kwarg in kwargs.keys():
             assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
+
         name = kwargs.get('name')
         if not name:
             name = self.__class__.__name__.lower()
@@ -23,19 +21,12 @@ class Model(object):
         logging = kwargs.get('logging', False)
         self.logging = logging
 
-        self.vars = {}
-        self.placeholders = {}
-
-        self.layers = []
-        self.activations = []
-
-        self.inputs = None
-        self.outputs = None
-
         self.loss = 0
         self.accuracy = 0
         self.optimizer = None
         self.opt_op = None
+
+        self.vars = {}
 
     def _build(self):
         raise NotImplementedError
@@ -44,23 +35,16 @@ class Model(object):
         """ Wrapper for _build() """
         with tf.variable_scope(self.name):
             self._build()
-
-        # Build sequential layer model
-        self.activations.append(self.inputs)
-        for layer in self.layers:
-            hidden = layer(self.activations[-1])
-            self.activations.append(hidden)
-        self.outputs = self.activations[-1]
-
-        # Store model variables for easy access
         variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
         self.vars = {var.name: var for var in variables}
 
-        # Build metrics
         self._loss()
         self._accuracy()
 
         self.opt_op = self.optimizer.minimize(self.loss)
+
+    def fit(self):
+        pass
 
     def predict(self):
         pass
@@ -71,204 +55,69 @@ class Model(object):
     def _accuracy(self):
         raise NotImplementedError
 
-    def save(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = saver.save(sess, "tmp/%s.ckpt" % self.name)
-        print("Model saved in file: %s" % save_path)
-
-    def load(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = "tmp/%s.ckpt" % self.name
-        saver.restore(sess, save_path)
-        print("Model restored from file: %s" % save_path)
-
-
-class MLP(Model):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(MLP, self).__init__(**kwargs)
+class GraphiteModel(Model):
+    def __init__(self, placeholders, num_features, n_samples, **kwargs):
+        super(GraphiteModel, self).__init__(**kwargs)
 
         self.inputs = placeholders['features']
-        self.input_dim = input_dim
-        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
+        self.input_dim = num_features
         self.output_dim = placeholders['labels'].get_shape().as_list()[1]
+        self.n_samples = n_samples
         self.placeholders = placeholders
+        self.weight_norm = 0
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
 
         self.build()
 
-    def _loss(self):
-        # Weight decay loss
-        for var in self.layers[0].vars.values():
-            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
+    def encoder(self, inputs):
 
-        # Cross entropy error
-        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-                                                  self.placeholders['labels_mask'])
+        hidden1 = Dense(input_dim=self.input_dim,
+                                    output_dim=FLAGS.hidden1,
+                                    placeholders=self.placeholders,
+                                    act=tf.nn.relu,
+                                    logging=self.logging)(inputs)
 
-    def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-                                        self.placeholders['labels_mask'])
+        hidden2 = Dense(input_dim=FLAGS.hidden1,
+                                    output_dim=FLAGS.hidden2,
+                                    placeholders=self.placeholders,
+                                    act=tf.nn.relu,
+                                    logging=self.logging)(hidden1)
 
-    def _build(self):
-        self.layers.append(Dense(input_dim=self.input_dim,
-                                 output_dim=FLAGS.hidden1,
-                                 placeholders=self.placeholders,
-                                 act=tf.nn.relu,
-                                 dropout=True,
-                                 sparse_inputs=True,
-                                 logging=self.logging))
-
-        self.layers.append(Dense(input_dim=FLAGS.hidden1,
-                                 output_dim=self.output_dim,
-                                 placeholders=self.placeholders,
-                                 act=lambda x: x,
-                                 dropout=True,
-                                 logging=self.logging))
-
-    def predict(self):
-        return tf.nn.softmax(self.outputs)
-
-
-class GCN(Model):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(GCN, self).__init__(**kwargs)
-
-        self.inputs = placeholders['features']
-        self.input_dim = input_dim
-        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
-        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
-        self.placeholders = placeholders
-
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-
-        self.build()
-
-    def _loss(self):
-        for var in self.layers[0].vars.values():
-            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-
-        # Cross entropy error
-        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-                                                  self.placeholders['labels_mask'])
-
-    def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-                                        self.placeholders['labels_mask'])
-
-    def _build(self):
-
-        self.layers.append(GraphConvolution(input_dim=self.input_dim,
-                                            output_dim=FLAGS.hidden1,
-                                            placeholders=self.placeholders,
-                                            act=tf.nn.relu,
-                                            dropout=True,
-                                            sparse_inputs=True,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
-                                            output_dim=self.output_dim,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: x,
-                                            dropout=True,
-                                            logging=self.logging))
-
-    def predict(self):
-        return tf.nn.softmax(self.outputs)
-
-
-#################################################
-
-class GlobalGCN(GCN):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(GlobalGCN, self).__init__(placeholders, input_dim, **kwargs)
-
-    def _build(self):
-        self.layers.append(GlobalGraphConvolution(input_dim=self.input_dim,
-                                            output_dim=FLAGS.hidden1,
-                                            placeholders=self.placeholders,
-                                            act=tf.nn.relu,
-                                            dropout=True,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-
-        self.layers.append(GlobalGraphConvolution(input_dim=FLAGS.hidden1,
-                                            output_dim=FLAGS.hidden2,
-                                            placeholders=self.placeholders,
-                                            act=tf.nn.relu,
-                                            dropout=True,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-        self.layers.append(GlobalGraphConvolution(input_dim=FLAGS.hidden2,
-                                            output_dim=self.output_dim,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: x,
-                                            dropout=True,
-                                            sparse_inputs=False,
-                                            logging=self.logging))
-        self.layers.append(Mean(1))
-
-####################################################
-
-class GenerativeGCN(Model):
-    def __init__(self, placeholders, input_dim, vertex_count, **kwargs):
-        super(GenerativeGCN, self).__init__(**kwargs)
-
-        self.inputs = placeholders['features']
-        self.input_dim = input_dim
-        self.vertex_count = vertex_count
-
-        self.output_dim = int(placeholders["labels"].get_shape()[1])
-        self.placeholders = placeholders
-
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-
-        self.build()
-
-    def _loss(self):
-
-        self.pred = tf.squeeze(tf.reduce_mean(self.outputs, 1))
-        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.pred, labels=self.placeholders["labels"]))
-
-        for var in self.layers[0].vars.values():
-            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-
-        self.data = []
-
-    def _accuracy(self):
-        self.accuracy = 1
-
-    def _build(self):
-
-        self.layers.append(GenerativeGraphConvolution(input_dim=self.input_dim,
-                                            output_dim=FLAGS.hidden1,
-                                            placeholders=self.placeholders,
-                                            act=gated_act,
-                                            dropout=True,
-                                            first=True,
-                                            logging=self.logging))
-
-        self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden1,
-                                            output_dim=FLAGS.hidden2,
-                                            placeholders=self.placeholders,
-                                            act=gated_act,
-                                            dropout=True,
-                                            logging=self.logging))
-        self.layers.append(GenerativeGraphConvolution(input_dim=FLAGS.hidden2,
+        hidden3 = GlobalGraphConvolution(input_dim=FLAGS.hidden2,
                                             output_dim=FLAGS.hidden3,
                                             placeholders=self.placeholders,
-                                            act=gated_act,
-                                            dropout=True,
-                                            logging=self.logging))
-        self.layers.append(Dense(input_dim=FLAGS.hidden3,
-                                            output_dim=self.output_dim,
+                                            act=tf.nn.relu,
+                                            logging=self.logging)(hidden2)
+
+        self.z = GlobalGraphConvolution(input_dim=FLAGS.hidden3,
+                                            output_dim=FLAGS.hidden4,
                                             placeholders=self.placeholders,
                                             act=lambda x: x,
-                                            dropout=True,
-                                            logging=self.logging))
+                                            logging=self.logging)(hidden3)
+
+    def _build(self):
+  
+        self.encoder(self.inputs)
+
+        hidden4 = tf.concat((Mean(1)(self.z), Max(1)(self.z)), axis = 1)
+        hidden5 = Dense2D(input_dim=2 * FLAGS.hidden4,
+                                    output_dim=FLAGS.hidden5,
+                                    placeholders=self.placeholders,
+                                    act=tf.nn.relu,
+                                    logging=self.logging)(hidden4)
+        self.outputs = Dense2D(input_dim=FLAGS.hidden5,
+                                    output_dim=self.output_dim,
+                                    placeholders=self.placeholders,
+                                    act=lambda x: x,
+                                    logging=self.logging)(hidden5)
+
+    def _loss(self):
+        #self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
+
+        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'], self.placeholders['labels_mask'])
+
+    def _accuracy(self):
+        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'], self.placeholders['labels_mask'])
 
 

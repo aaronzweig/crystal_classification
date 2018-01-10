@@ -1,161 +1,116 @@
-# from pynauty import Graph, certificate, autgrp
 import numpy as np
 from scipy.sparse import csr_matrix, hstack, identity
-from rdkit import Chem
+from scipy.sparse.csgraph import laplacian
+from sklearn import manifold
 import csv
+import pickle
 import networkx as nx
 
-recognized_elements = 	['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na',
-						'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb',
-						'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',    # H?
-						'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr',
-						'Cr', 'Pt', 'Hg', 'Pb', 'Dummy', 'Unknown']
+def read_labels(labels):
 
-import tensorflow as tf
-flags = tf.app.flags
-FLAGS = flags.FLAGS
+	remap = {}
+	for label in labels:
+		if label not in remap:
+			remap[label] = len(remap)
 
-##########################################################################
-#Partitally from "Convolutional Networks on Graphs for Learning Molecular Fingerprints"
+	new_labels = np.zeros((len(labels), len(remap)))
+	for i in range(len(labels)):
+		label = labels[i]
+		new_labels[i][remap[label]] = 1
 
-def one_of_k_encoding_unk(x, allowable_set):
-    """Maps inputs not in the allowable set to the last element."""
-    if x not in allowable_set:
-        x = allowable_set[-1]
-    return map(lambda s: x == s, allowable_set)
+	return new_labels
 
-def atom_features(atom):
+def pad(A, X, size):
+	A_prime = np.zeros((size, size))
+	X_prime = np.zeros((size, X.shape[1]))
 
-	return np.array(one_of_k_encoding_unk(atom.GetSymbol(), recognized_elements))
+	A_prime[:A.shape[0], :A.shape[1]] = A
+	X_prime[:A.shape[0], :] = X
 
-def bond_features(bond):
-    bt = bond.GetBondType()
-    return np.array([bt == Chem.rdchem.BondType.SINGLE,
-                     bt == Chem.rdchem.BondType.DOUBLE,
-                     bt == Chem.rdchem.BondType.TRIPLE,
-                     bt == Chem.rdchem.BondType.AROMATIC])
+	return A_prime, X_prime
 
-def num_atom_features():
-    # Return length of feature vector using a very simple molecule.
-    m = Chem.MolFromSmiles('CC')
-    alist = m.GetAtoms()
-    a = alist[0]
-    return len(atom_features(a))
+def permute(A, X):
+	P = np.identity(A.shape[0])
+	np.random.shuffle(P)
+	return np.dot(P, A).dot(P.T), np.dot(P, X)
 
-def num_bond_features():
-    # Return length of feature vector using a very simple molecule.
-    simple_mol = Chem.MolFromSmiles('CC')
-    Chem.SanitizeMol(simple_mol)
-    return len(bond_features(simple_mol.GetBonds()[0]))
+def get_cofactor(A, i):
+	indices = range(A.shape[0])
+	indices.remove(i)
+	cofactor = A[indices, :]
+	cofactor = cofactor[:, indices]
+	return cofactor
 
+def distance_features(A,k):
+	G = nx.from_numpy_matrix(A)
+	D = nx.floyd_warshall_numpy(G)
+	return D[:,:k]
 
-##########################################################################
+def spectral_clustering_features(A, k):
+	features = manifold.spectral_embedding(csr_matrix(A), n_components=k)
+	return features
 
-def smiles_to_graph(smiles):
-	mol = Chem.MolFromSmiles(smiles)
-	A = Chem.rdmolops.GetAdjacencyMatrix(mol, useBO = False)
+def spectral_features(A, k):
+	n = A.shape[0]
 
-	# A[np.where(A == 3)] = 4
-	# A[np.where(A == 2)] = 3
-	# A[np.where(A == 1.5)] = 2
+	features = np.zeros((n, k))
+	L = laplacian(A, normed = True)
+	for i in range(n):
+		cofactor = get_cofactor(L, i)
+		v, _ = np.linalg.eig(cofactor)
+		v = np.sort(v)
+		v = np.trim_zeros(v)
 
-	X = np.zeros((mol.GetNumAtoms(), num_atom_features()))
+		#might be too small to have enough eigenvalues, pad the rest as zero
+		length = min(k, len(v))
 
-	for i in range(mol.GetNumAtoms()):
-		atom = mol.GetAtomWithIdx(i)
-		X[i,:] = atom_features(atom)
+		features[i,:length] = v.real[:length]
+	return features
 
-	return A, X
+def read_dataset(dataset, spectral_cap):
+	f = open("datasets/" + dataset + ".graph")
+	data = pickle.loads(f.read())
+	f.close()
 
-def reorder_graph(G):
-	dim = G.order()
+	labels = read_labels(data['labels'])
+	graphs = data['graph']
 
-	rand = np.random.permutation(dim)
-	mapping = dict(zip(G.nodes(),rand))
-	G = nx.relabel_nodes(G, mapping)
+	pad_size = 0
+	for key in graphs.keys():
+		graph = graphs[key]
+		vertex_count = len(graph.keys())
+		pad_size = max(pad_size, vertex_count)
 
-	root = np.random.randint(dim)
-	top = [root] + [b for (a,b) in nx.bfs_edges(G, root)]
-
-	order = [top.index(i) for i in range(dim)]
-	mapping = dict(zip(G.nodes(),order))
-
-	return nx.relabel_nodes(G, mapping)
-
-def build_molecule_graph(A, X):
-    G = nx.from_numpy_matrix(A)
-    node_labels = {}
-    for i in range(X.shape[0]):
-        index = list(X[i]).index(1)
-        node_labels[i] = recognized_elements[index]
-    nx.set_node_attributes(G, "atom", node_labels)
-    G.remove_nodes_from(nx.isolates(G))
-    return G
-
-def build_molecule_matrix(G):
-	A = nx.to_numpy_matrix(G)
-	X = np.zeros((A.shape[0], num_atom_features()))
-	for i in range(X.shape[0]):
-		X[i, :] = one_of_k_encoding_unk(nx.get_node_attributes(G, "atom")[i], recognized_elements)
-	return A, X
-
-def read_clintox_distribution():
-	dist = np.zeros(num_atom_features())
-
-	with open("clintox.csv", "rb") as f:
-		reader = csv.reader(f)
-		next(reader, None) #skip header
-		for row in reader:
-			smiles = row[0]
-
-			if Chem.MolFromSmiles(smiles) is not None:
-				A, X = smiles_to_graph(smiles)
-				if A.shape[0] > 11:
-					continue
-
-				dist += np.sum(X, 0)
-
-	return dist * 1.0 / np.sum(dist)
-
-def random_indices(k, dist):
-	num = dist.size
-	samples = np.random.choice(num, k, p = dist)
-	indices = zip(range(k), samples)
-	return indices
-
-def read_clintox():
-	dim = FLAGS.max_dim
 	As = []
 	Xs = []
-	dist = read_clintox_distribution()
 
-	with open("clintox.csv", "rb") as f:
-		reader = csv.reader(f)
-		next(reader, None) #skip header
-		for row in reader:
-			smiles = row[0]
+	for key in graphs.keys():
+		graph = graphs[key]
+		vertex_count = len(graph.keys())
+		feature_count = len(graph[0]['label'])
 
-			if Chem.MolFromSmiles(smiles) is not None:
-				A, X = smiles_to_graph(smiles)
-				if A.shape[0] > 11:
-					continue
+		A = np.zeros((vertex_count, vertex_count))
+		X = np.zeros((vertex_count, feature_count))
+		for i in range(vertex_count):
+			X[i] = graph[i]['label']
+			for j in graph[i]['neighbors']:
+				A[i,j] = 1
 
-				Xpad = np.zeros((dim, X.shape[1]))
-				indices = random_indices(dim, dist)
-				for index in indices:
-					Xpad[index] = 1
-				Xpad[:X.shape[0], :X.shape[1]] = X
-				X = np.asarray(np.hstack((Xpad, np.identity(dim))))
+		A, X = permute(A, X)
 
-				As.append(A)
-				Xs.append(X)
+		s_features = spectral_features(A, spectral_cap)
+		X = np.hstack((X, s_features))
+	
+		A, X = pad(A, X, pad_size)
 
-	return As, Xs, dim
+		As.append(A)
+		Xs.append(X)
 
+	return As, Xs, labels
 
 def read_mutag():
 	#hard-coded maximum vertex count specifically for the mutag dataset
-	VERTICES = 30
+	PAD_SIZE = 30
 
 	def clean(L):
 		return L.split('\n')[1:-1]
@@ -186,9 +141,14 @@ def read_mutag():
 			col = [0] * len(V)
 			X = csr_matrix((V,(row,col)), dtype = 'int16')
 
+
 			A, X = A.todense(), X.todense()
-			A, X = pad(A, X, VERTICES)
-			X = np.hstack((X, np.identity(VERTICES)))
+			A, X = permute(A, X)
+
+			s_features = spectral_features(A, 9)
+			X = np.hstack((X, s_features))
+			A, X = pad(A, X, PAD_SIZE)
+
 			As.append(A)
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
@@ -223,38 +183,5 @@ def read_toy():
 		Apad[:A.shape[0], :A.shape[1]] = A
 		As.append(Apad)
 		Xs.append(0)
-
-	return As, Xs, dim
-
-def read_zinc():
-	dim = 20
-
-	As = []
-	Xs = []
-
-	count = 0
-	with open("50_k.smi") as f:
-		for line in f:
-			smiles = line.split()[0]
-			if Chem.MolFromSmiles(smiles) is not None:
-				A, X = smiles_to_graph(smiles)
-				G = build_molecule_graph(A, X)
-				G = reorder_graph(G)
-				A, X = build_molecule_matrix(G)
-
-
-        		Apad = np.zeros((dim, dim))
-        		Apad[:A.shape[0], :A.shape[1]] = A
-
-        		Xpad = np.zeros((dim, X.shape[1]))
-        		Xpad[:, -2] = 1 #remaining nodes are deemed dummy
-        		Xpad[:X.shape[0], :X.shape[1]] = X
-
-        		As.append(Apad)
-        		Xs.append(Xpad)
-
-        		count += 1
-        		if count >= FLAGS.training_size:
-        			break
 
 	return As, Xs, dim

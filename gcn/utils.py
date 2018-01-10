@@ -7,7 +7,7 @@ import sys
 import Queue
 import pickle
 
-import format
+from format import *
 
 import tensorflow as tf
 flags = tf.app.flags
@@ -16,18 +16,20 @@ FLAGS = flags.FLAGS
 
 
 
-def load_global_data(read_func):
-    As, Xs, labels = read_func()
+def load_data(dataset, spectral_cap):
+    As, Xs, labels = read_dataset(dataset, spectral_cap)
+    A_origs = [np.asarray(A) for A in As]
     As = [np.asarray(preprocess_adj(A).todense()) for A in As]
     Xs = [np.asarray(X) for X in Xs]
 
+    A_orig = np.dstack(tuple(A_origs))
+    A_orig = np.transpose(A_orig, axes=(2, 0, 1))
     A = np.dstack(tuple(As))
     A = np.transpose(A, axes=(2, 0, 1))
     X = np.dstack(tuple(Xs))
     X = np.transpose(X, axes=(2, 0, 1))
 
-    count = labels.shape[0]
-    train_mask = np.random.choice(2, count, p=[FLAGS.validation, 1 - FLAGS.validation])
+    train_mask = np.random.choice(2, labels.shape[0], p=[FLAGS.validation, 1 - FLAGS.validation])
     val_mask = 1 - train_mask
     train_mask = np.array(train_mask, dtype=np.bool)
     #TODO: Have separate testing data for final evaluation
@@ -40,91 +42,7 @@ def load_global_data(read_func):
     y_val[val_mask, :] = labels[val_mask, :]
     y_test[test_mask, :] = labels[test_mask, :]
 
-    return A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask, A.shape[2], X.shape[2]
-
-def make_helper_features(dim, r, c, hit_nodes):
-    features = np.zeros((dim, 4))
-    features[r,0] = 1
-    features[c,1] = 1
-    features[:c,2] = 1
-    features[:,3] = hit_nodes
-    return features
-
-def load_generative_data(read_func):
-    As, Xs, dim = read_func()
-    A_test = As[:2*FLAGS.test]
-    X_test = Xs[:2*FLAGS.test]
-    As = As[FLAGS.test:]
-    Xs = Xs[FLAGS.test:]
-
-    batch = len(As)
-
-    labels = []
-    A_norm = []
-    X = []
-
-    for i in range(batch):
-        if i % (batch / 10) == 0:
-            print(str(i) + "/" + str(batch))
-        adj = As[i]
-
-        features = Xs[i]
-        partial = np.zeros((dim, dim))
-        hit_nodes = np.zeros(dim)
-
-        q = Queue.Queue()
-        enqueued = set()
-        q.put(0)
-        enqueued.add(0)
-
-        while not q.empty():
-            r = q.get()
-            for c in range(dim):
-                if hit_nodes[c] == 1 or c == r:
-                    continue
-
-                if FLAGS.dataset == "clintox":
-                    label = np.zeros(2)
-                else:
-                    label = np.zeros(2)
-
-                adj_norm = np.asarray(preprocess_adj(partial).todense())
-                label[int(adj[r,c])] = 1
-                helper_features = make_helper_features(dim, r, c, hit_nodes)
-
-                perm = np.random.permutation(dim)
-                perm_identity = np.identity(dim)
-                perm_identity[:, perm] = perm_identity
-                if FLAGS.dataset == "clintox":
-                    updated_feature = np.asarray(np.hstack((features, perm_identity, helper_features)))
-                else:
-                    updated_feature = np.asarray(np.hstack((perm_identity, helper_features)))
-                adj_norm = adj_norm[perm, :]
-
-                X.append(updated_feature)
-                A_norm.append(adj_norm)
-                labels.append(label)
-
-                partial[r,c] = partial[c,r] = 0 if int(adj[r,c]) == 0 else 1
-                if label[0] == 0 and c not in enqueued:
-                    q.put(c)
-                    enqueued.add(c)
-            hit_nodes[r] = 1
-
-    labels = np.vstack(tuple(labels))
-    A_norm = np.dstack(tuple(A_norm))
-    A_norm = np.transpose(A_norm, axes=(2, 0, 1))
-    X = np.dstack(tuple(X))
-    X = np.transpose(X, axes=(2, 0, 1))
-
-    if FLAGS.validation == -1:
-        FLAGS.validation = FLAGS.batch_size * 1.0 / X.shape[0]
-    train_mask = np.random.choice(2, X.shape[0], p=[FLAGS.validation, 1 - FLAGS.validation])
-    val_mask = 1 - train_mask
-    train_mask = np.array(train_mask, dtype=np.bool)
-    val_mask = np.array(val_mask, dtype=np.bool)
-
-    return labels, A_norm, X, train_mask, val_mask, A_norm.shape[2], X.shape[2], A_test, X_test
+    return A_orig, A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask
 
 
 def sparse_to_tuple(sparse_mx):
@@ -172,22 +90,14 @@ def preprocess_adj(adj):
     return adj_normalized
 
 
-def construct_feed_dict(features, support, labels, labels_mask, placeholders):
+def construct_feed_dict(features, adj_norm, adj_orig, labels, labels_mask, placeholders):
     """Construct feed dictionary."""
     feed_dict = dict()
     feed_dict.update({placeholders['labels']: labels})
     feed_dict.update({placeholders['labels_mask']: labels_mask})
     feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
-    feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
-    return feed_dict
-
-def construct_generative_feed_dict(features, labels, adj_norm, placeholders):
-    """Construct feed dictionary."""
-    feed_dict = dict()
-    feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['labels']: labels})
     feed_dict.update({placeholders['adj_norm']: adj_norm})
-    feed_dict.update({placeholders['num_features_nonzero']: np.asarray(features.shape)})
+    feed_dict.update({placeholders['adj_orig']: adj_orig})
+    feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
     return feed_dict
 

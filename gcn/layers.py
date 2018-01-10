@@ -84,22 +84,16 @@ class Layer(object):
 
 class Dense(Layer):
     """Dense layer."""
-    def __init__(self, input_dim, output_dim, placeholders, dropout=0., sparse_inputs=False,
-                 act=tf.nn.relu, bias=False, featureless=False, **kwargs):
+    def __init__(self, input_dim, output_dim, placeholders, act=tf.nn.relu, bias=False, featureless=False, **kwargs):
         super(Dense, self).__init__(**kwargs)
 
-        if dropout:
-            self.dropout = placeholders['dropout']
-        else:
-            self.dropout = 0.
-
+        self.dropout = placeholders['dropout']
         self.act = act
-        self.adj_norm = placeholders['adj_norm']
-        self.sparse_inputs = sparse_inputs
         self.featureless = featureless
         self.bias = bias
-
-        # helper variable for sparse dropout
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.adj_norm = placeholders['adj_norm']
         self.num_features_nonzero = placeholders['num_features_nonzero']
 
         with tf.variable_scope(self.name + '_vars'):
@@ -112,23 +106,47 @@ class Dense(Layer):
 
     def _call(self, inputs):
         x = inputs
+        x = tf.nn.dropout(x, 1-self.dropout)
 
-        # dropout
-        if self.sparse_inputs:
-            x = sparse_dropout(x, 1-self.dropout, self.num_features_nonzero)
-        else:
-            x = tf.nn.dropout(x, 1-self.dropout)
-
-        input_dim = self.vars['weights'].get_shape().as_list()[0]
-        output_dim = self.vars['weights'].get_shape().as_list()[1]
         vertex_count = int(self.adj_norm.get_shape()[1])
 
-        # transform
-        x = tf.reshape(x, [-1, input_dim])
+        x = tf.reshape(x, [-1, self.input_dim])
         output = tf.matmul(x, self.vars['weights'])
-        output = tf.reshape(output, [-1, vertex_count, output_dim])
+        output = tf.reshape(output, [-1, vertex_count, self.output_dim])
 
-        # bias
+        if self.bias:
+            output += self.vars['bias']
+
+        return self.act(output)
+
+class Dense2D(Layer):
+    """Dense layer."""
+    def __init__(self, input_dim, output_dim, placeholders, act=tf.nn.relu, bias=False, featureless=False, **kwargs):
+        super(Dense2D, self).__init__(**kwargs)
+
+        self.dropout = placeholders['dropout']
+        self.act = act
+        self.featureless = featureless
+        self.bias = bias
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.adj_norm = placeholders['adj_norm']
+        self.num_features_nonzero = placeholders['num_features_nonzero']
+
+        with tf.variable_scope(self.name + '_vars'):
+            self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
+            if self.bias:
+                self.vars['bias'] = zeros([output_dim], name='bias')
+
+        if self.logging:
+            self._log_vars()
+
+    def _call(self, inputs):
+        x = inputs
+        x = tf.nn.dropout(x, 1-self.dropout)
+
+        output = tf.matmul(x, self.vars['weights'])
+
         if self.bias:
             output += self.vars['bias']
 
@@ -141,6 +159,14 @@ class Mean(Layer):
 
     def _call(self, inputs):
         return tf.reduce_mean(inputs, self.axis)
+
+class Max(Layer):
+    def __init__(self, axis, **kwargs):
+        super(Max, self).__init__(**kwargs)
+        self.axis = axis
+
+    def _call(self, inputs):
+        return tf.reduce_max(inputs, self.axis)
 
 class GraphConvolution(Layer):
     """Graph convolution layer."""
@@ -200,93 +226,42 @@ class GraphConvolution(Layer):
 
         return self.act(output)
 
-class GlobalGraphConvolution(GraphConvolution):
+class GlobalGraphConvolution(Layer):
     """Graph convolution layer."""
-    def __init__(self, input_dim, output_dim, placeholders, dropout=0.,
-                 sparse_inputs=False, act=tf.nn.relu, bias=False,
-                 featureless=False, **kwargs):
-        super(GlobalGraphConvolution, self).__init__(input_dim, output_dim, placeholders, dropout, sparse_inputs, act, bias, featureless, **kwargs)
 
-    def _call(self, inputs):
-        x = inputs
+    def __init__(self, input_dim, output_dim, placeholders, act=tf.nn.relu, bias=False, featureless=False, **kwargs):
+        super(GlobalGraphConvolution, self).__init__(**kwargs)
 
-        # dropout
-        if self.sparse_inputs:
-            x = sparse_dropout(x, 1-self.dropout, self.num_features_nonzero)
-        else:
-            x = tf.nn.dropout(x, 1-self.dropout)
-
-        input_dim = self.vars['weights_0'].get_shape().as_list()[0]
-        output_dim = self.vars['weights_0'].get_shape().as_list()[1]
-        vertex_count = int(x.get_shape()[1])
-        x = tf.reshape(x, [-1, input_dim])
-        pre_sup = tf.matmul(x, self.vars['weights_0'], a_is_sparse = True)
-        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, output_dim])
-        output = tf.matmul(self.support[0], pre_sup)
-
-        # bias
-        if self.bias:
-            output += self.vars['bias']
-
-        return self.act(output)
-
-class GenerativeGraphConvolution(Layer):
-    """Graph convolution layer."""
-    def __init__(self, input_dim, output_dim, placeholders, dropout=0.,
-                 sparse_inputs=False, act=tf.nn.relu, bias=False, first=False,
-                 featureless=False, **kwargs):
-        super(GenerativeGraphConvolution, self).__init__(**kwargs)
-
-        if dropout:
-            self.dropout = placeholders['dropout']
-        else:
-            self.dropout = 0.
-
+        self.dropout = placeholders['dropout']
         self.act = act
         self.adj_norm = placeholders['adj_norm']
-        self.sparse_inputs = sparse_inputs
         self.featureless = featureless
         self.bias = bias
-        self.first = first
-
-        # helper variable for sparse dropout
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.num_features_nonzero = placeholders['num_features_nonzero']
 
         with tf.variable_scope(self.name + '_vars'):
             self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
-            self.vars['weights2'] = glorot([input_dim, output_dim], name='weights2')
             if self.bias:
                 self.vars['bias'] = zeros([output_dim], name='bias')
-                self.vars['bias2'] = zeros([output_dim], name='bias2')
 
         if self.logging:
             self._log_vars()
 
     def _call(self, inputs):
         x = inputs
+        x = tf.nn.dropout(x, 1-self.dropout)
 
-        # dropout
-        if self.sparse_inputs:
-            x = sparse_dropout(x, 1-self.dropout, self.num_features_nonzero)
-        else:
-            x = tf.nn.dropout(x, 1-self.dropout)
+        vertex_count = int(x.get_shape()[1])
 
-        input_dim = self.vars['weights'].get_shape().as_list()[0]
-        output_dim = self.vars['weights'].get_shape().as_list()[1]
-        vertex_count = int(self.adj_norm.get_shape()[1])
-
-        x = tf.reshape(x, [-1, input_dim])
-        pre_sup = tf.matmul(x, self.vars['weights'], a_is_sparse = self.first)
-        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, output_dim])
+        x = tf.reshape(x, [-1, self.input_dim])
+        pre_sup = tf.matmul(x, self.vars['weights'])
+        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, self.output_dim])
         output = tf.matmul(self.adj_norm, pre_sup)
 
-        pre_sup = tf.matmul(x, self.vars['weights2'], a_is_sparse = self.first)
-        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, output_dim])
-        output2 = tf.matmul(self.adj_norm, pre_sup)
-
-        # bias
         if self.bias:
             output += self.vars['bias']
-            output2 += self.vars['bias2']
 
-        return self.act(output, output2)
+        return self.act(output)
+
