@@ -70,11 +70,7 @@ class Layer(object):
 
     def __call__(self, inputs):
         with tf.name_scope(self.name):
-            if self.logging and not self.sparse_inputs:
-                tf.summary.histogram(self.name + '/inputs', inputs)
             outputs = self._call(inputs)
-            if self.logging:
-                tf.summary.histogram(self.name + '/outputs', outputs)
             return outputs
 
     def _log_vars(self):
@@ -265,3 +261,40 @@ class GlobalGraphConvolution(Layer):
 
         return self.act(output)
 
+class GlobalGraphite(Layer):
+
+    def __init__(self, input_dim, output_dim, placeholders, act=tf.nn.relu, bias=False, **kwargs):
+        super(GlobalGraphite, self).__init__(**kwargs)
+
+        self.dropout = placeholders['dropout']
+        self.act = act
+        self.adj_norm = placeholders['adj_norm']
+        self.bias = bias
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.num_features_nonzero = placeholders['num_features_nonzero']
+
+        with tf.variable_scope(self.name + '_vars'):
+            self.vars['weights'] = glorot([input_dim, output_dim], name='weights')
+            if self.bias:
+                self.vars['bias'] = zeros([output_dim], name='bias')
+
+        if self.logging:
+            self._log_vars()
+
+    def _call(self, inputs):
+        x = inputs[0]
+        adj = inputs[1]
+        x = tf.nn.dropout(x, 1-self.dropout)
+
+        vertex_count = int(x.get_shape()[1])
+
+        x = tf.reshape(x, [-1, self.input_dim])
+        pre_sup = tf.matmul(x, self.vars['weights'])
+        pre_sup = tf.reshape(pre_sup, [-1, vertex_count, self.output_dim])
+        output = tf.matmul(adj, pre_sup)
+
+        if self.bias:
+            output += self.vars['bias']
+
+        return self.act(output)

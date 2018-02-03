@@ -6,6 +6,9 @@ import csv
 import pickle
 import networkx as nx
 
+import graphkernels.kernels as gk
+import igraph
+
 def read_labels(labels):
 
 	remap = {}
@@ -153,35 +156,86 @@ def read_mutag():
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
 
-def read_toy():
-	dim = FLAGS.max_dim
-	batch = FLAGS.training_size
+def read_toy(dataset, spectral_cap, seed = None):
+	dim = 40
+	batch = 100
+	p = 0.5
+	d = 4
+	np.random.seed(seed)
 
 	As = []
 	Xs = []
 
 	for i in range(batch):
-		local_dim = np.random.randint(3,dim + 1)
-		if FLAGS.dataset == "star":
-			G = nx.star_graph(local_dim - 1)
-			G = reorder_graph(G)
-		elif FLAGS.dataset == "ring":
-			G = nx.cycle_graph(local_dim)
-			G = reorder_graph(G)
-		elif FLAGS.dataset == "ego":
-			G = nx.fast_gnp_random_graph(local_dim, 0.1)
+		local_dim = np.random.randint(20 ,dim + 1)
+		if dataset == "ego":
+			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
 			H = nx.star_graph(local_dim - 1)
 			G = nx.compose(G,H)
-			G = reorder_graph(G)
-		elif FLAGS.dataset == "lollipop":
-			G = nx.lollipop_graph(3, local_dim - 3)
-			G = reorder_graph(G)
+		elif dataset == "ER":
+			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
+		elif dataset == "regular":
+			G = nx.random_regular_graph(d, local_dim, seed = seed)
 
 		A = nx.to_numpy_matrix(G)
+		X = spectral_features(A, spectral_cap)
+		A, X = permute(A, X)
+		A, X = pad(A, X, dim)
+		#
+		X = np.identity(dim)
+		#
+		As.append(A)
+		Xs.append(X)
 
-		Apad = np.zeros((dim, dim))
-		Apad[:A.shape[0], :A.shape[1]] = A
-		As.append(Apad)
-		Xs.append(0)
+	return As, Xs, np.zeros((batch, 2))
 
-	return As, Xs, dim
+def kernel_scores(generated, test):
+	adj_list = []
+	for A in generated:
+		np.fill_diagonal(A, 0)
+		A = A.astype(int)
+		graph = igraph.Graph.Adjacency((A > 0).tolist(), mode = igraph.ADJ_MAX)
+		graph.vs['id'] = [str(i) for i in range(A.shape[0])]
+		graph.vs['label'] = [0 for i in range(A.shape[0])]
+		graph.es['label'] = [1 for i in range(np.sum(A))]
+		adj_list.append(graph)
+	for A in test:
+		np.fill_diagonal(A, 0)
+		A = A.astype(int)
+		graph = igraph.Graph.Adjacency((A > 0).tolist(), mode = igraph.ADJ_MAX)
+		graph.vs['id'] = [str(i) for i in range(A.shape[0])]
+		graph.vs['label'] = [0 for i in range(A.shape[0])]
+		graph.es['label'] = [1 for i in range(np.sum(A))]
+		adj_list.append(graph)
+
+	adj_list = np.asarray(adj_list)
+
+	funcs = [gk.CalculateWLKernel, gk.CalculateGraphletKernel, gk.CalculateShortestPathKernel]
+	kernels = []
+	for func in funcs:
+		K = func(adj_list)
+		norms = np.sqrt(np.diagonal(K))
+		norms = np.outer(norms, norms)
+		K = K / norms
+		K = K[:len(generated), len(generated):]
+		kernels.append(np.mean(K))
+	return kernels
+
+
+def accurate_toy(dataset, G):
+    if G.order() == 0:
+        return 0
+
+    if dataset == "ego":
+        A = nx.to_numpy_matrix(G)
+        np.fill_diagonal(A, 0)
+
+        n = A.shape[0]
+
+        alive_nodes = np.count_nonzero(np.sum(A, 0))
+        return np.max(np.sum(A, 0)) + 1 == alive_nodes
+    elif dataset == "ring":
+        H = nx.cycle_graph(G.order())
+        return nx.is_isomorphic(G,H)
+    else:
+        return 0
