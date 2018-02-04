@@ -7,7 +7,7 @@ import pickle
 import networkx as nx
 
 # import graphkernels.kernels as gk
-import igraph
+# import igraph
 
 
 dim = 20
