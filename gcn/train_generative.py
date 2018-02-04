@@ -12,6 +12,9 @@ from layers import *
 from format import *
 import numpy as np
 
+import warnings
+warnings.filterwarnings("ignore")
+
 import matplotlib.pyplot as plt
 
 # Settings
@@ -30,14 +33,15 @@ flags.DEFINE_float('dropout', 0.0, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('spectral_cap', 9, 'Number of smallest non-zero eigenvalues from each vertex deleted graph')
-flags.DEFINE_float('validation', 0.2, 'Percent of training data to withhold for validation')
+flags.DEFINE_float('validation', 0.0, 'Percent of training data to withhold for validation')
 flags.DEFINE_string('dataset', "mutag", 'Name of dataset to load')
 flags.DEFINE_integer('gpu', -1, 'gpu to use, -1 for no gpu')
 flags.DEFINE_float('autoregressive_scalar', 0., 'you know')
 flags.DEFINE_float('density_scalar', 1., 'you know')
 flags.DEFINE_integer('seed', 123, 'TF and numpy seed')
 
-flags.DEFINE_integer('gen_count', 20, 'Number of generated toy graphs for accuracy')
+flags.DEFINE_integer('gen_count', 100, 'Number of generated toy graphs for accuracy')
+flags.DEFINE_integer('verbose', 1, 'Print shit')
 
 tf.set_random_seed(FLAGS.seed)
 
@@ -89,7 +93,7 @@ for epoch in range(FLAGS.epochs):
     val_loss, val_acc = evaluate(X_, A_, A_orig_, y_train_, train_mask_, placeholders, False)
     train_loss, train_acc = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
 
-    if (epoch + 1) % 5 == 0:
+    if FLAGS.verbose and (epoch + 1) % 50 == 0:
         print("Epoch:", '%04d' % (epoch + 1),"train_loss=", "{:.5f}".format(train_loss),
                                         "val_loss=", "{:.5f}".format(val_loss))
 
@@ -102,15 +106,16 @@ def plot_graph(A):
 
 
 feed_dict = construct_feed_dict(X, A, A_orig, y_train, train_mask, placeholders)
-gens = sess.run(model.sample(FLAGS.gen_count), feed_dict=feed_dict)
+gens = sess.run(model.sample_fair(FLAGS.gen_count), feed_dict=feed_dict)
 
 # kernels = kernel_scores(gens, test)
 # print(kernels)
 
-for i in range(5):
-    A = gens[i]
-    print(A)
-    plot_graph(A)
+print(density_estimate(gens))
+
+# for i in range(5):
+#     A = gens[i]
+#     plot_graph(A)
 
 
 

@@ -14,7 +14,6 @@ def reconstruct_graph(emb, normalize = True):
       graph = tf.nn.sigmoid(graph)
       d = tf.reduce_sum(graph, 1)
       d = tf.pow(d, -0.5)
-      #d = tf.stop_gradient(d)
       graph = tf.expand_dims(d, 1) * graph * tf.expand_dims(d, 2)
     return graph
 
@@ -197,6 +196,18 @@ class GraphiteGenModel(Model):
                             act=lambda x: x,
                             logging=self.logging)
 
+        self.decode_edges3 = Dense(input_dim=FLAGS.hidden6,
+                                    output_dim=FLAGS.hidden7,
+                                    placeholders=self.placeholders,
+                                    act=tf.nn.relu,
+                                    logging=self.logging)
+
+        self.decode_edges4 = Dense(input_dim=FLAGS.hidden7,
+                            output_dim=1,
+                            placeholders=self.placeholders,
+                            act=lambda x: x,
+                            logging=self.logging)
+
         self.decode_graphite = GlobalGraphite(input_dim=FLAGS.hidden4,
                                     output_dim=FLAGS.hidden5,
                                     placeholders=self.placeholders,
@@ -210,10 +221,20 @@ class GraphiteGenModel(Model):
                                     logging=self.logging)        
     
     def reconstruct_relnet(self, emb, normalize = True):
-        edges = tf.expand_dims(emb, 1) * tf.expand_dims(emb, 2)
+        edges = tf.expand_dims(emb, 1) + tf.expand_dims(emb, 2)
         edges = tf.reshape(edges, [-1, self.n_samples * self.n_samples, FLAGS.hidden6])
         edges = self.decode_edges(edges)
         edges = self.decode_edges2(edges)
+        graph = tf.reshape(edges, [-1, self.n_samples, self.n_samples])
+        if normalize:
+            graph = tf.nn.sigmoid(graph)
+        return graph
+
+    def reconstruct_relnet2(self, emb, normalize = True):
+        edges = tf.expand_dims(emb, 1) + tf.expand_dims(emb, 2)
+        edges = tf.reshape(edges, [-1, self.n_samples * self.n_samples, FLAGS.hidden6])
+        edges = self.decode_edges3(edges)
+        edges = self.decode_edges4(edges)
         graph = tf.reshape(edges, [-1, self.n_samples, self.n_samples])
         if normalize:
             graph = tf.nn.sigmoid(graph)
@@ -227,23 +248,22 @@ class GraphiteGenModel(Model):
         hidden = self.decode_graphite((emb, graph))
         new_emb = self.decode_graphite2((hidden, graph))
         emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
+        graph = self.reconstruct_relnet2(emb, normalize = False)
 
-        return self.reconstruct_relnet(emb, normalize = False)
+        return graph
 
     def _build(self):
   
         self.encoder(self.inputs)
         self.decoder_layers()
         z = self.z_mean + tf.random_normal(tf.shape(self.z_mean)) * tf.exp(self.z_log_std)
-
-        #
-        z = tf.random_normal(tf.shape(self.z_mean))
-        #
         self.reconstruction = self.decode(z)
 
     def _loss(self):
         logits = self.reconstruction
         labels = self.placeholders['adj_orig']
+
+        self.log_lik = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = logits, labels = labels))
 
         neg_loss = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(logits = logits, targets = labels, pos_weight = 0), [1,2])
         pos_loss = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(logits = logits, targets = labels, pos_weight = 1), [1,2]) - neg_loss
@@ -255,22 +275,19 @@ class GraphiteGenModel(Model):
         neg_scale = pos_totals / (pos_totals + neg_totals)
 
         self.loss = tf.reduce_mean(pos_scale * pos_loss + neg_scale * neg_loss)
-        self.log_lik = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = logits, labels = labels))
-
-        #
-        A = tf.sigmoid(logits)
-        self.loss = 0
-        self.loss = tf.reduce_mean(1.0 / self.n_samples * tf.trace(cube(A)))
-        condition = tf.greater(A, 0.5)
-        present = tf.where(condition, A, tf.zeros_like(A))
-        self.loss += FLAGS.density_scalar * tf.reduce_mean(tf.square(tf.reduce_mean(present, [1,2]) - 0.2))
-        #
-        #self.loss -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
+        self.loss -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
 
     def sample(self, count):
         z = tf.random_normal([count, self.n_samples, FLAGS.hidden4])
         reconstruction = tf.nn.sigmoid(self.decode(z))
         return tf.round(reconstruction)
+
+    def sample_fair(self, count):
+        z = tf.random_normal([count, self.n_samples, FLAGS.hidden4])
+        reconstruction = tf.nn.sigmoid(self.decode(z))
+        random = tf.random_uniform(reconstruction.shape)
+        condition = tf.greater(reconstruction, random)
+        return tf.where(condition, tf.ones_like(random), tf.zeros_like(random))
 
     def _accuracy(self):
         self.accuracy = tf.reduce_mean(tf.zeros(1))

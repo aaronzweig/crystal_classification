@@ -6,8 +6,12 @@ import csv
 import pickle
 import networkx as nx
 
-import graphkernels.kernels as gk
+# import graphkernels.kernels as gk
 import igraph
+
+
+dim = 20
+lower_dim = 10
 
 def read_labels(labels):
 
@@ -25,10 +29,11 @@ def read_labels(labels):
 
 def pad(A, X, size):
 	A_prime = np.zeros((size, size))
-	X_prime = np.zeros((size, X.shape[1]))
+	X_prime = np.zeros((size, X.shape[1] + 1))
 
 	A_prime[:A.shape[0], :A.shape[1]] = A
-	X_prime[:A.shape[0], :] = X
+	X_prime[:A.shape[0], :-1] = X
+	X_prime[A.shape[0]:, -1] += 1
 
 	return A_prime, X_prime
 
@@ -157,17 +162,17 @@ def read_mutag():
 	return As, Xs, np.stack(Cs)
 
 def read_toy(dataset, spectral_cap, seed = None):
-	dim = 40
 	batch = 100
-	p = 0.5
+	p = 0.2
 	d = 4
+	radius = 0.1
 	np.random.seed(seed)
 
 	As = []
 	Xs = []
 
 	for i in range(batch):
-		local_dim = np.random.randint(20 ,dim + 1)
+		local_dim = np.random.randint(lower_dim ,dim + 1)
 		if dataset == "ego":
 			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
 			H = nx.star_graph(local_dim - 1)
@@ -176,51 +181,64 @@ def read_toy(dataset, spectral_cap, seed = None):
 			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
 		elif dataset == "regular":
 			G = nx.random_regular_graph(d, local_dim, seed = seed)
+		elif dataset == "geometric":
+			G = nx.random_geometric_graph(local_dim, radius)
 
 		A = nx.to_numpy_matrix(G)
-		X = spectral_features(A, spectral_cap)
+		X = np.zeros((A.shape[0], 1))
 		A, X = permute(A, X)
 		A, X = pad(A, X, dim)
 		#
-		X = np.identity(dim)
+		X = np.hstack((X, np.identity(dim)))
 		#
 		As.append(A)
 		Xs.append(X)
 
 	return As, Xs, np.zeros((batch, 2))
 
-def kernel_scores(generated, test):
-	adj_list = []
-	for A in generated:
-		np.fill_diagonal(A, 0)
-		A = A.astype(int)
-		graph = igraph.Graph.Adjacency((A > 0).tolist(), mode = igraph.ADJ_MAX)
-		graph.vs['id'] = [str(i) for i in range(A.shape[0])]
-		graph.vs['label'] = [0 for i in range(A.shape[0])]
-		graph.es['label'] = [1 for i in range(np.sum(A))]
-		adj_list.append(graph)
-	for A in test:
-		np.fill_diagonal(A, 0)
-		A = A.astype(int)
-		graph = igraph.Graph.Adjacency((A > 0).tolist(), mode = igraph.ADJ_MAX)
-		graph.vs['id'] = [str(i) for i in range(A.shape[0])]
-		graph.vs['label'] = [0 for i in range(A.shape[0])]
-		graph.es['label'] = [1 for i in range(np.sum(A))]
-		adj_list.append(graph)
+# def kernel_scores(generated, test):
+# 	adj_list = []
+# 	for A in generated:
+# 		np.fill_diagonal(A, 0)
+# 		A = A.astype(int)
+# 		graph = igraph.Graph.Adjacency((A > 0).tolist(), mode = igraph.ADJ_MAX)
+# 		graph.vs['id'] = [str(i) for i in range(A.shape[0])]
+# 		graph.vs['label'] = [0 for i in range(A.shape[0])]
+# 		graph.es['label'] = [1 for i in range(np.sum(A))]
+# 		adj_list.append(graph)
+# 	for A in test:
+# 		np.fill_diagonal(A, 0)
+# 		A = A.astype(int)
+# 		graph = igraph.Graph.Adjacency((A > 0).tolist(), mode = igraph.ADJ_MAX)
+# 		graph.vs['id'] = [str(i) for i in range(A.shape[0])]
+# 		graph.vs['label'] = [0 for i in range(A.shape[0])]
+# 		graph.es['label'] = [1 for i in range(np.sum(A))]
+# 		adj_list.append(graph)
 
-	adj_list = np.asarray(adj_list)
+# 	adj_list = np.asarray(adj_list)
 
-	funcs = [gk.CalculateWLKernel, gk.CalculateGraphletKernel, gk.CalculateShortestPathKernel]
-	kernels = []
-	for func in funcs:
-		K = func(adj_list)
-		norms = np.sqrt(np.diagonal(K))
-		norms = np.outer(norms, norms)
-		K = K / norms
-		K = K[:len(generated), len(generated):]
-		kernels.append(np.mean(K))
-	return kernels
+# 	funcs = [gk.CalculateWLKernel, gk.CalculateGraphletKernel, gk.CalculateShortestPathKernel]
+# 	kernels = []
+# 	for func in funcs:
+# 		K = func(adj_list)
+# 		norms = np.sqrt(np.diagonal(K))
+# 		norms = np.outer(norms, norms)
+# 		K = K / norms
+# 		K = K[:len(generated), len(generated):]
+# 		kernels.append(np.mean(K))
+# 	return kernels
 
+def density_estimate(gens):
+	prob = 0
+	for i in range(lower_dim, dim + 1):
+		prob += (1.0 / (dim - lower_dim)) * i**2 / dim**2
+	return prob * np.mean(gens)
+
+def degree_estimate(gens):
+	prob = 0
+	for i in range(lower_dim, dim + 1):
+		prob += (1.0 / (dim - lower_dim)) * i**2 / dim**2
+	return prob * np.mean(np.sum(gens, 1))
 
 def accurate_toy(dataset, G):
     if G.order() == 0:
