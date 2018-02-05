@@ -45,6 +45,9 @@ flags.DEFINE_integer('gen_count', 100, 'Number of generated toy graphs for accur
 flags.DEFINE_integer('verbose', 1, 'Print shit')
 flags.DEFINE_integer('test_count', 10, 'as')
 
+flags.DEFINE_float('p', 0.2, 'p')
+flags.DEFINE_integer('d', 4, 'd')
+
 tf.set_random_seed(FLAGS.seed)
 
 densities = np.zeros(FLAGS.test_count)

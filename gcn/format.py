@@ -9,6 +9,11 @@ import networkx as nx
 # import graphkernels.kernels as gk
 # import igraph
 
+from format import *
+
+import tensorflow as tf
+flags = tf.app.flags
+FLAGS = flags.FLAGS
 
 dim = 20
 lower_dim = 10
@@ -163,9 +168,8 @@ def read_mutag():
 
 def read_toy(dataset, spectral_cap, seed = None):
 	batch = 100
-	p = 0.2
-	d = 4
-	radius = 0.1
+	p = FLAGS.p
+	d = FLAGS.d
 	np.random.seed(seed)
 
 	As = []
@@ -182,7 +186,7 @@ def read_toy(dataset, spectral_cap, seed = None):
 		elif dataset == "regular":
 			G = nx.random_regular_graph(d, local_dim, seed = seed)
 		elif dataset == "geometric":
-			G = nx.random_geometric_graph(local_dim, radius)
+			G = nx.random_geometric_graph(local_dim, p)
 
 		A = nx.to_numpy_matrix(G)
 		X = np.zeros((A.shape[0], 1))
