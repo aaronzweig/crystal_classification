@@ -5,6 +5,7 @@ import os
 
 import time
 import tensorflow as tf
+import scipy.stats as stats
 
 from utils import *
 from models import *
@@ -114,7 +115,8 @@ for test_iter in range(FLAGS.test_count):
     gens = sess.run(model.sample_fair(FLAGS.gen_count), feed_dict=feed_dict)
 
     d = density_estimate(gens)
-    print(d)
+    if FLAGS.verbose:
+        print(d)
     densities[test_iter] = d
 
     # for i in range(5):
@@ -122,5 +124,6 @@ for test_iter in range(FLAGS.test_count):
     #     plot_graph(A)
 
 print(np.mean(densities))
+print(stats.sem(densities))
 
 
