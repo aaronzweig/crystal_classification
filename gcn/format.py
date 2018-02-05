@@ -187,14 +187,22 @@ def read_toy(dataset, spectral_cap, seed = None):
 			G = nx.random_regular_graph(d, local_dim, seed = seed)
 		elif dataset == "geometric":
 			G = nx.random_geometric_graph(local_dim, p)
+		elif dataset == "geometric_features":
+			features = np.random.normal((local_dim, 2))
+			pos = {}
+			for j in range(local_dim):
+				pos[j] = features[j].tolist()
+			G = nx.random_geometric_graph(local_dim, 0.2, pos=pos)
 
 		A = nx.to_numpy_matrix(G)
 		X = np.zeros((A.shape[0], 1))
+		if dataset == "geometric_features":
+			X = features
+
 		A, X = permute(A, X)
 		A, X = pad(A, X, dim)
-		#
 		X = np.hstack((X, np.identity(dim)))
-		#
+
 		As.append(A)
 		Xs.append(X)
 
