@@ -51,6 +51,7 @@ flags.DEFINE_integer('d', 4, 'd')
 tf.set_random_seed(FLAGS.seed)
 
 densities = np.zeros(FLAGS.test_count)
+losses = np.zeros(FLAGS.test_count)
 
 for test_iter in range(FLAGS.test_count):
     FLAGS.seed += 10
@@ -122,11 +123,17 @@ for test_iter in range(FLAGS.test_count):
         print(d)
     densities[test_iter] = d
 
+    losses[test_iter] = val_loss
+
     # for i in range(5):
     #     A = gens[i]
     #     plot_graph(A)
 
+print("density")
 print(np.mean(densities))
 print(stats.sem(densities))
+print("loss")
+print(np.mean(losses))
+print(stats.sem(losses))
 
 
