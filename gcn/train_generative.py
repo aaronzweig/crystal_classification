@@ -91,8 +91,8 @@ for test_iter in range(FLAGS.test_count):
             feed_dict.update({placeholders['dropout']: FLAGS.dropout})
         else:
             func = model.loss
-        outs_val = sess.run([func, model.loss, model.accuracy], feed_dict=feed_dict)
-        return outs_val[1], outs_val[2]
+        outs_val = sess.run([func, model.loss, model.accuracy, model.log_lik], feed_dict=feed_dict)
+        return outs_val[1], outs_val[2], outs_val[3]
 
 
     sess = make_session()
@@ -100,8 +100,8 @@ for test_iter in range(FLAGS.test_count):
 
     for epoch in range(FLAGS.epochs):
 
-        val_loss, val_acc = evaluate(X_, A_, A_orig_, y_train_, train_mask_, placeholders, False)
-        train_loss, train_acc = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
+        val_loss, val_acc, val_log_lik = evaluate(X_, A_, A_orig_, y_train_, train_mask_, placeholders, False)
+        train_loss, train_acc, _ = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
 
         if FLAGS.verbose and (epoch + 1) % 50 == 0:
             print("Epoch:", '%04d' % (epoch + 1),"train_loss=", "{:.5f}".format(train_loss),
@@ -121,7 +121,7 @@ for test_iter in range(FLAGS.test_count):
     d = density_estimate(gens)
     densities[test_iter] = d
 
-    losses[test_iter] = val_loss
+    losses[test_iter] = val_log_lik
 
     # for i in range(5):
     #     A = gens[i]
@@ -130,7 +130,7 @@ for test_iter in range(FLAGS.test_count):
 # print("density")
 # print(np.mean(densities))
 # print(stats.sem(densities))
-print("loss")
+print("log_lik")
 print(np.mean(losses))
 print(stats.sem(losses))
 
