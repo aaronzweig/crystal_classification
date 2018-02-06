@@ -250,6 +250,12 @@ class GraphiteGenModel(Model):
         new_emb = self.decode_graphite2((hidden, graph))
         emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
         # graph = self.reconstruct_relnet2(emb, normalize = False)
+        graph = reconstruct_graph(emb)
+
+        hidden = self.decode_graphite((emb, graph))
+        new_emb = self.decode_graphite2((hidden, graph))
+        emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
+        # graph = self.reconstruct_relnet2(emb, normalize = False)
         graph = reconstruct_graph(emb, normalize = False)
 
         return graph
