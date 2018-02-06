@@ -119,8 +119,6 @@ for test_iter in range(FLAGS.test_count):
     gens = sess.run(model.sample_fair(FLAGS.gen_count), feed_dict=feed_dict)
 
     d = density_estimate(gens)
-    if FLAGS.verbose:
-        print(d)
     densities[test_iter] = d
 
     losses[test_iter] = val_loss
@@ -129,9 +127,9 @@ for test_iter in range(FLAGS.test_count):
     #     A = gens[i]
     #     plot_graph(A)
 
-print("density")
-print(np.mean(densities))
-print(stats.sem(densities))
+# print("density")
+# print(np.mean(densities))
+# print(stats.sem(densities))
 print("loss")
 print(np.mean(losses))
 print(stats.sem(losses))
