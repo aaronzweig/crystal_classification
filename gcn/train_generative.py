@@ -116,11 +116,15 @@ for test_iter in range(FLAGS.test_count):
         plt.close()
 
 
-    feed_dict = construct_feed_dict(X, A, A_orig, y_train, train_mask, placeholders)
-    gens = sess.run(model.sample_fair(FLAGS.gen_count), feed_dict=feed_dict)
+    feed_dict = construct_feed_dict(X_, A_, A_orig_, y_train_, train_mask_, placeholders)
+    #gens = sess.run(model.sample_fair(FLAGS.gen_count), feed_dict=feed_dict)
+    embs = sess.run(model.z_mean, feed_dict=feed_dict)
+    embs = np.mean(embs, 1)
 
-    d = density_estimate(gens)
-    densities[test_iter] = d
+    if FLAGS.verbose:
+        print(embs)
+        print(y_train_)
+
 
     losses[test_iter] = val_log_lik
 

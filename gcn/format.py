@@ -174,9 +174,21 @@ def read_toy(dataset, spectral_cap, seed = None):
 
 	As = []
 	Xs = []
+	types = np.zeros((batch, 2))
+
+	dic = {}
+	dic['ego'] = 0
+	dic['ER'] = 1
+	dic['regular'] = 2
+	dic['geometric'] = 3
 
 	for i in range(batch):
 		local_dim = np.random.randint(lower_dim ,dim + 1)
+		
+		if dataset == "all":
+			random_choice = np.random.randint(4)
+			dataset = ['ego', 'ER', 'regular', 'geometric'][random_choice]
+
 		if dataset == "ego":
 			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
 			H = nx.star_graph(local_dim - 1)
@@ -187,17 +199,10 @@ def read_toy(dataset, spectral_cap, seed = None):
 			G = nx.random_regular_graph(d, local_dim, seed = seed)
 		elif dataset == "geometric":
 			G = nx.random_geometric_graph(local_dim, p)
-		elif dataset == "geometric_features":
-			features = np.random.normal((local_dim, 2))
-			pos = {}
-			for j in range(local_dim):
-				pos[j] = features[j].tolist()
-			G = nx.random_geometric_graph(local_dim, 0.2, pos=pos)
+
 
 		A = nx.to_numpy_matrix(G)
 		X = np.zeros((A.shape[0], 1))
-		if dataset == "geometric_features":
-			X = features
 
 		A, X = permute(A, X)
 		A, X = pad(A, X, dim)
@@ -205,8 +210,9 @@ def read_toy(dataset, spectral_cap, seed = None):
 
 		As.append(A)
 		Xs.append(X)
+		types[i][0] = dic[dataset]
 
-	return As, Xs, np.zeros((batch, 2))
+	return As, Xs, types
 
 # def kernel_scores(generated, test):
 # 	adj_list = []
