@@ -166,7 +166,7 @@ def read_mutag():
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
 
-def read_toy(dataset, spectral_cap, seed = None):
+def read_toy(dataset_real, spectral_cap, seed = None):
 	batch = 100
 	p = FLAGS.p
 	d = FLAGS.d
@@ -185,6 +185,7 @@ def read_toy(dataset, spectral_cap, seed = None):
 	for i in range(batch):
 		local_dim = np.random.randint(lower_dim ,dim + 1)
 		
+		dataset = dataset_real
 		if dataset == "all":
 			random_choice = np.random.randint(4)
 			dataset = ['ego', 'ER', 'regular', 'geometric'][random_choice]

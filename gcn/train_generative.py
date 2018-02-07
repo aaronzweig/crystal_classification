@@ -122,6 +122,7 @@ for test_iter in range(FLAGS.test_count):
     embs = np.mean(embs, 1)
 
     if FLAGS.verbose:
+        np.set_printoptions(threshold = np.nan)
         print(embs)
         print(y_train_)
 
