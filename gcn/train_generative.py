@@ -44,6 +44,7 @@ flags.DEFINE_integer('seed', 123, 'TF and numpy seed')
 flags.DEFINE_integer('gen_count', 100, 'Number of generated toy graphs for accuracy')
 flags.DEFINE_integer('verbose', 1, 'Print shit')
 flags.DEFINE_integer('test_count', 1, 'as')
+flags.DEFINE_integer('VAE', 1, 'd')
 
 flags.DEFINE_float('p', 0.2, 'p')
 flags.DEFINE_integer('d', 4, 'd')

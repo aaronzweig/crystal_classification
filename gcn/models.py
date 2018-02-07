@@ -265,6 +265,8 @@ class GraphiteGenModel(Model):
         self.encoder(self.inputs)
         self.decoder_layers()
         z = self.z_mean + tf.random_normal(tf.shape(self.z_mean)) * tf.exp(self.z_log_std)
+        if not FLAGS.VAE:
+            z = self.z_mean
         self.reconstruction = self.decode(z)
 
     def _loss(self):
@@ -283,7 +285,8 @@ class GraphiteGenModel(Model):
         neg_scale = pos_totals / (pos_totals + neg_totals)
 
         self.loss = tf.reduce_mean(pos_scale * pos_loss + neg_scale * neg_loss)
-        self.loss -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
+        if FLAGS.VAE:
+            self.loss -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
 
     def sample(self, count):
         z = tf.random_normal([count, self.n_samples, FLAGS.hidden4])
