@@ -286,7 +286,10 @@ class GraphiteGenModel(Model):
 
         self.loss = tf.reduce_mean(pos_scale * pos_loss + neg_scale * neg_loss)
         if FLAGS.VAE:
+            self.log_lik -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
             self.loss -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
+
+        self.log_lik *= -1.0 * self.n_samples * self.n_samples
 
     def sample(self, count):
         z = tf.random_normal([count, self.n_samples, FLAGS.hidden4])
