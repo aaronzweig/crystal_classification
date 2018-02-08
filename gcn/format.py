@@ -181,6 +181,8 @@ def read_toy(dataset_real, spectral_cap, seed = None):
 	dic['ER'] = 1
 	dic['regular'] = 2
 	dic['geometric'] = 3
+	dic['power_tree'] = 4
+	dic['barabasi'] = 5
 
 	for i in range(batch):
 		local_dim = np.random.randint(lower_dim ,dim + 1)
