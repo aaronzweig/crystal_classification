@@ -121,10 +121,9 @@ for test_iter in range(FLAGS.test_count):
     embs = sess.run(model.z_mean, feed_dict=feed_dict)
     embs = np.mean(embs, 1)
 
-    if FLAGS.verbose:
-        np.set_printoptions(threshold = np.nan)
-        print(embs)
-        print(y_train_)
+    # if FLAGS.verbose:
+    #     np.save("embs", embs)
+    #     np.save("labels", y_train_)
 
 
     losses[test_iter] = val_log_lik

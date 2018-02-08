@@ -191,16 +191,19 @@ def read_toy(dataset_real, spectral_cap, seed = None):
 			dataset = ['ego', 'ER', 'regular', 'geometric'][random_choice]
 
 		if dataset == "ego":
-			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
+			G = nx.fast_gnp_random_graph(local_dim, p)
 			H = nx.star_graph(local_dim - 1)
 			G = nx.compose(G,H)
 		elif dataset == "ER":
-			G = nx.fast_gnp_random_graph(local_dim, p, seed = seed)
+			G = nx.fast_gnp_random_graph(local_dim, p)
 		elif dataset == "regular":
-			G = nx.random_regular_graph(d, local_dim, seed = seed)
+			G = nx.random_regular_graph(d, local_dim)
 		elif dataset == "geometric":
 			G = nx.random_geometric_graph(local_dim, p)
-
+		elif dataset == "power_tree":
+			G = nx.random_powerlaw_tree(local_dim, d)
+		elif dataset == "barabasi":
+			G = nx.barabasi_albert_graph(local_dim, d)		
 
 		A = nx.to_numpy_matrix(G)
 		X = np.zeros((A.shape[0], 1))
