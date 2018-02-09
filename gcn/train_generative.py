@@ -53,6 +53,7 @@ tf.set_random_seed(FLAGS.seed)
 
 densities = np.zeros(FLAGS.test_count)
 losses = np.zeros(FLAGS.test_count)
+losses_train = np.zeros(FLAGS.test_count)
 
 for test_iter in range(FLAGS.test_count):
     FLAGS.seed += 10
@@ -102,7 +103,7 @@ for test_iter in range(FLAGS.test_count):
     for epoch in range(FLAGS.epochs):
 
         val_loss, val_acc, val_log_lik = evaluate(X_, A_, A_orig_, y_train_, train_mask_, placeholders, False)
-        train_loss, train_acc, _ = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
+        train_loss, train_acc, train_log_lik = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
 
         if FLAGS.verbose and (epoch + 1) % 50 == 0:
             print("Epoch:", '%04d' % (epoch + 1),"train_loss=", "{:.5f}".format(train_loss),
@@ -127,6 +128,7 @@ for test_iter in range(FLAGS.test_count):
 
 
     losses[test_iter] = val_log_lik
+    losses_train[test_iter] = train_log_lik
 
     # for i in range(5):
     #     A = gens[i]
@@ -138,5 +140,7 @@ for test_iter in range(FLAGS.test_count):
 print("log_lik")
 print(np.mean(losses))
 print(stats.sem(losses))
-
+print("train")
+print(np.mean(losses_train))
+print(stats.sem(losses_train))
 
