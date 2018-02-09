@@ -203,7 +203,7 @@ def read_toy(dataset_real, spectral_cap, seed = None):
 		elif dataset == "geometric":
 			G = nx.random_geometric_graph(local_dim, p)
 		elif dataset == "power_tree":
-			G = nx.random_powerlaw_tree(local_dim, tries = 1000)
+			G = nx.random_powerlaw_tree(local_dim, tries = 100000)
 		elif dataset == "barabasi":
 			G = nx.barabasi_albert_graph(local_dim, d)		
 
