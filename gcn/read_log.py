@@ -1,5 +1,5 @@
 import sys
-f = open(sys.argv[0])
+f = open(sys.argv[1])
 content = f.read().splitlines()
 print("val")
 mean = str(round(float(content[1]), 2))
