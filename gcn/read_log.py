@@ -1,6 +1,6 @@
 import sys
 with open(sys.argv[0]) as f:
-    content = f.readlines()
+    content = f.read().splitlines()
     print("val")
     mean = str(round(float(content[1]), 2))
     var = str(round(float(content[2]), 2))
