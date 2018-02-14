@@ -169,18 +169,20 @@ def read_mutag():
 def read_siemens(seed):
 	As = []
 	Xs = []
-	batch_range = range(143 + seed,2000,2)
+	batch_range = range(seed,2000,2)
 	types = np.zeros((len(batch_range), 2))
 
 	for i in batch_range:
 		nodes = []
-		with open("Successful/nodes_case" + str(i) + ".txt") as f:
+		prefix = "Successful" if i >= 143 else "Unsuccessful"
+		with open(prefix + "/nodes_case" + str(i) + ".txt") as f:
 			nodes = f.read().splitlines()
 			nodes = [int(n) for n in nodes]
-		with open("Successful/edges_case" + str(i) + ".txt") as f:
+		with open(prefix + "/edges_case" + str(i) + ".txt") as f:
 			edges = f.read().splitlines()
 			edges = [n.strip('[]').strip().split(',') for n in edges]
 			edges = [(int(n[0]), int(n[1])) for n in edges]
+
 		A = np.zeros((200, 200))
 		for edge in edges:
 			v1 = nodes.index(edge[0])
