@@ -56,7 +56,6 @@ losses = np.zeros(FLAGS.test_count)
 losses_train = np.zeros(FLAGS.test_count)
 
 for test_iter in range(FLAGS.test_count):
-    FLAGS.seed += 10
     A_orig, A, X, y_train, y_val, y_test, train_mask, val_mask, test_mask = load_data(FLAGS.dataset, FLAGS.spectral_cap, FLAGS.seed)
     A_orig_, A_, X_, y_train_, _, _, train_mask_, _, _ = load_data(FLAGS.dataset, FLAGS.spectral_cap, FLAGS.seed + 1)
 

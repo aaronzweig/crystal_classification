@@ -19,7 +19,7 @@ FLAGS = flags.FLAGS
 def load_data(dataset, spectral_cap, seed):
     #As, Xs, labels = read_dataset(dataset, spectral_cap)
     #As, Xs, labels = read_toy(dataset, spectral_cap, seed)
-    As, Xs, labels = read_siemens()    
+    As, Xs, labels = read_siemens(seed)    
     A_origs = [np.asarray(A) + np.identity(A.shape[0]) for A in As]
     As = [np.asarray(preprocess_adj(A).todense()) for A in As]
     Xs = [np.asarray(X) for X in Xs]

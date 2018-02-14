@@ -166,12 +166,13 @@ def read_mutag():
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
 
-def read_siemens():
+def read_siemens(seed):
 	As = []
 	Xs = []
-	types = np.zeros((2000-143, 2))
+	batch_range = range(143 + seed,2000,2)
+	types = np.zeros(len(batch_range))
 
-	for i in range(143,2000):
+	for i in batch_range:
 		nodes = []
 		with open("Successful/nodes_case" + str(i) + ".txt") as f:
 			nodes = f.read().splitlines()
