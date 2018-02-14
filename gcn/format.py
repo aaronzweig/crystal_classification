@@ -11,9 +11,9 @@ import networkx as nx
 
 from format import *
 
-import tensorflow as tf
-flags = tf.app.flags
-FLAGS = flags.FLAGS
+# import tensorflow as tf
+# flags = tf.app.flags
+# FLAGS = flags.FLAGS
 
 dim = 20
 lower_dim = 10
@@ -165,6 +165,34 @@ def read_mutag():
 			As.append(A)
 			Xs.append(X)
 	return As, Xs, np.stack(Cs)
+
+def read_siemens():
+	As = []
+	Xs = []
+	types = np.zeros((2000-143, 2))
+
+	for i in range(143,2000):
+		nodes = []
+		with open("Successful/nodes_case" + str(i) + ".txt") as f:
+			nodes = f.read().splitlines()
+			nodes = [int(n) for n in nodes]
+		with open("Successful/edges_case" + str(i) + ".txt") as f:
+			edges = f.read().splitlines()
+			edges = [n.strip('[]').strip().split(',') for n in edges]
+			edges = [(int(n[0]), int(n[1])) for n in edges]
+		A = np.zeros((200, 200))
+		for edge in edges:
+			v1 = nodes.index(edge[0])
+			v2 = nodes.index(edge[1])
+			A[v1, v2] = 1
+		X = np.identity(200)
+
+		As.append(A)
+		Xs.append(X)
+
+	return As, Xs, types		
+
+read_siemens()
 
 def read_toy(dataset_real, spectral_cap, seed = None):
 	batch = 100

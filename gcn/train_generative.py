@@ -105,7 +105,7 @@ for test_iter in range(FLAGS.test_count):
         val_loss, val_acc, val_log_lik = evaluate(X_, A_, A_orig_, y_train_, train_mask_, placeholders, False)
         train_loss, train_acc, train_log_lik = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
 
-        if FLAGS.verbose and (epoch + 1) % 50 == 0:
+        if FLAGS.verbose:
             print("Epoch:", '%04d' % (epoch + 1),"train_loss=", "{:.5f}".format(train_loss),
                                             "val_loss=", "{:.5f}".format(val_loss))
 
