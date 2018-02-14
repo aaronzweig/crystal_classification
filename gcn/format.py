@@ -190,7 +190,7 @@ def read_siemens(seed):
 			A[v1, v2] = 1
 		X = np.identity(200)
 		feature = 1 if i >= 143 else 0
-		X = np.hstack((X, np.zeros(A.shape[0], 1) + feature))
+		# X = np.hstack((X, np.zeros(A.shape[0], 1) + feature))
 
 		As.append(A)
 		Xs.append(X)
