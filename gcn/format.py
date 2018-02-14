@@ -170,7 +170,7 @@ def read_siemens(seed):
 	As = []
 	Xs = []
 	batch_range = range(143 + seed,2000,2)
-	types = np.zeros(len(batch_range))
+	types = np.zeros((len(batch_range), 2))
 
 	for i in batch_range:
 		nodes = []
