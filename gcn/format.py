@@ -193,8 +193,6 @@ def read_siemens(seed):
 
 	return As, Xs, types		
 
-read_siemens()
-
 def read_toy(dataset_real, spectral_cap, seed = None):
 	batch = 100
 	p = FLAGS.p
