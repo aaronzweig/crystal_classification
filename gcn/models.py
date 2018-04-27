@@ -75,71 +75,6 @@ class Model(object):
     def _accuracy(self):
         raise NotImplementedError
 
-class GraphiteModel(Model):
-    def __init__(self, placeholders, num_features, n_samples, **kwargs):
-        super(GraphiteModel, self).__init__(**kwargs)
-
-        self.inputs = placeholders['features']
-        self.input_dim = num_features
-        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
-        self.n_samples = n_samples
-        self.placeholders = placeholders
-        self.weight_norm = 0
-
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-
-        self.build()
-
-    def encoder(self, inputs):
-
-        hidden1 = Dense(input_dim=self.input_dim,
-                                    output_dim=FLAGS.hidden1,
-                                    placeholders=self.placeholders,
-                                    act=tf.nn.relu,
-                                    logging=self.logging)(inputs)
-
-        hidden2 = Dense(input_dim=FLAGS.hidden1,
-                                    output_dim=FLAGS.hidden2,
-                                    placeholders=self.placeholders,
-                                    act=tf.nn.relu,
-                                    logging=self.logging)(hidden1)
-
-        hidden3 = GlobalGraphConvolution(input_dim=FLAGS.hidden2,
-                                            output_dim=FLAGS.hidden3,
-                                            placeholders=self.placeholders,
-                                            act=tf.nn.relu,
-                                            logging=self.logging)(hidden2)
-
-        self.z = GlobalGraphConvolution(input_dim=FLAGS.hidden3,
-                                            output_dim=FLAGS.hidden4,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: x,
-                                            logging=self.logging)(hidden3)
-
-    def _build(self):
-  
-        self.encoder(self.inputs)
-
-        hidden4 = tf.concat((Mean(1)(self.z), Max(1)(self.z)), axis = 1)
-        hidden5 = Dense2D(input_dim=2 * FLAGS.hidden4,
-                                    output_dim=FLAGS.hidden5,
-                                    placeholders=self.placeholders,
-                                    act=tf.nn.relu,
-                                    logging=self.logging)(hidden4)
-        self.outputs = Dense2D(input_dim=FLAGS.hidden5,
-                                    output_dim=self.output_dim,
-                                    placeholders=self.placeholders,
-                                    act=lambda x: x,
-                                    logging=self.logging)(hidden5)
-
-    def _loss(self):
-        #self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-
-        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'], self.placeholders['labels_mask'])
-
-    def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'], self.placeholders['labels_mask'])
-
 class GraphiteGenModel(Model):
     def __init__(self, placeholders, num_features, n_samples, **kwargs):
         super(GraphiteGenModel, self).__init__(**kwargs)
@@ -202,17 +137,17 @@ class GraphiteGenModel(Model):
     def decode(self, z):
         hidden = self.decode_z(z)
         emb = self.decode_z2(hidden)
-        graph = reconstruct_graph(emb)
+        graph = reconstruct_graph(emb, normalize = False)
 
         # hidden = self.decode_graphite((emb, graph))
         # new_emb = self.decode_graphite2((hidden, graph))
         # emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
         # graph = reconstruct_graph(emb)
 
-        hidden = self.decode_graphite((emb, graph))
-        new_emb = self.decode_graphite2((hidden, graph))
-        emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
-        graph = reconstruct_graph(emb, normalize = False)
+        # hidden = self.decode_graphite((emb, graph))
+        # new_emb = self.decode_graphite2((hidden, graph))
+        # emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
+        # graph = reconstruct_graph(emb, normalize = False)
 
         return graph
 
@@ -221,8 +156,6 @@ class GraphiteGenModel(Model):
         self.encoder(self.inputs)
         self.decoder_layers()
         z = self.z_mean + tf.random_normal(tf.shape(self.z_mean)) * tf.exp(self.z_log_std)
-        if not FLAGS.VAE:
-            z = self.z_mean
         self.reconstruction = self.decode(z)
 
     def _loss(self):
@@ -242,21 +175,9 @@ class GraphiteGenModel(Model):
 
         self.loss = tf.reduce_mean(pos_scale * pos_loss + neg_scale * neg_loss)
 
-        degrees = tf.reduce_sum(tf.sigmoid(logits), axis = 1)
-        total = tf.zeros_like(degrees[:,0])
-        for a in A:
-            total += degrees[:, a]
-        total = tf.nn.relu(1 - total)
-        self.loss += 50 * tf.reduce_mean(total)
-
-        total = tf.zeros_like(degrees[:,0])
-        for b in B:
-            total += degrees[:, b]
-        total = tf.nn.relu(1 - total)
-        self.loss += 50 * tf.reduce_mean(total)
-
-        total = tf.nn.relu(degrees - 8)
-        self.loss += 50 * tf.reduce_mean(total)
+        # degrees = tf.reduce_sum(tf.nn.sigmoid(logits), 1)
+        # total = tf.nn.relu(degrees - 8)
+        # self.loss += tf.reduce_mean(total)
 
         if FLAGS.VAE:
             self.log_lik -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
