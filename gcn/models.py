@@ -7,6 +7,9 @@ from metrics import *
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
+A = [0, 35, 70, 105, 140, 175, 210]
+B = [34, 69, 104, 139, 174, 209, 224]
+
 def reconstruct_graph(emb, normalize = True):
     embT = tf.transpose(emb, [0, 2, 1])
     graph = tf.matmul(emb, embT)
@@ -184,30 +187,6 @@ class GraphiteGenModel(Model):
                             act=lambda x: x,
                             logging=self.logging)
 
-        self.decode_edges = Dense(input_dim=FLAGS.hidden6,
-                                    output_dim=FLAGS.hidden7,
-                                    placeholders=self.placeholders,
-                                    act=tf.nn.relu,
-                                    logging=self.logging)
-
-        self.decode_edges2 = Dense(input_dim=FLAGS.hidden7,
-                            output_dim=1,
-                            placeholders=self.placeholders,
-                            act=lambda x: x,
-                            logging=self.logging)
-
-        self.decode_edges3 = Dense(input_dim=FLAGS.hidden6,
-                                    output_dim=FLAGS.hidden7,
-                                    placeholders=self.placeholders,
-                                    act=tf.nn.relu,
-                                    logging=self.logging)
-
-        self.decode_edges4 = Dense(input_dim=FLAGS.hidden7,
-                            output_dim=1,
-                            placeholders=self.placeholders,
-                            act=lambda x: x,
-                            logging=self.logging)
-
         self.decode_graphite = GlobalGraphite(input_dim=FLAGS.hidden4,
                                     output_dim=FLAGS.hidden5,
                                     placeholders=self.placeholders,
@@ -219,43 +198,20 @@ class GraphiteGenModel(Model):
                                     placeholders=self.placeholders,
                                     act=lambda x: x,
                                     logging=self.logging)        
-    
-    def reconstruct_relnet(self, emb, normalize = True):
-        edges = tf.expand_dims(emb, 1) + tf.expand_dims(emb, 2)
-        edges = tf.reshape(edges, [-1, self.n_samples * self.n_samples, FLAGS.hidden6])
-        edges = self.decode_edges(edges)
-        edges = self.decode_edges2(edges)
-        graph = tf.reshape(edges, [-1, self.n_samples, self.n_samples])
-        if normalize:
-            graph = tf.nn.sigmoid(graph)
-        return graph
-
-    def reconstruct_relnet2(self, emb, normalize = True):
-        edges = tf.expand_dims(emb, 1) + tf.expand_dims(emb, 2)
-        edges = tf.reshape(edges, [-1, self.n_samples * self.n_samples, FLAGS.hidden6])
-        edges = self.decode_edges3(edges)
-        edges = self.decode_edges4(edges)
-        graph = tf.reshape(edges, [-1, self.n_samples, self.n_samples])
-        if normalize:
-            graph = tf.nn.sigmoid(graph)
-        return graph
 
     def decode(self, z):
         hidden = self.decode_z(z)
         emb = self.decode_z2(hidden)
-        # graph = self.reconstruct_relnet(emb)
         graph = reconstruct_graph(emb)
+
+        # hidden = self.decode_graphite((emb, graph))
+        # new_emb = self.decode_graphite2((hidden, graph))
+        # emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
+        # graph = reconstruct_graph(emb)
 
         hidden = self.decode_graphite((emb, graph))
         new_emb = self.decode_graphite2((hidden, graph))
         emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
-        # graph = self.reconstruct_relnet2(emb, normalize = False)
-        graph = reconstruct_graph(emb)
-
-        hidden = self.decode_graphite((emb, graph))
-        new_emb = self.decode_graphite2((hidden, graph))
-        emb = (1 - FLAGS.autoregressive_scalar) * emb + FLAGS.autoregressive_scalar * new_emb
-        # graph = self.reconstruct_relnet2(emb, normalize = False)
         graph = reconstruct_graph(emb, normalize = False)
 
         return graph
@@ -285,6 +241,23 @@ class GraphiteGenModel(Model):
         neg_scale = pos_totals / (pos_totals + neg_totals)
 
         self.loss = tf.reduce_mean(pos_scale * pos_loss + neg_scale * neg_loss)
+
+        degrees = tf.reduce_sum(tf.sigmoid(logits), axis = 1)
+        total = tf.zeros_like(degrees[:,0])
+        for a in A:
+            total += degrees[:, a]
+        total = tf.nn.relu(1 - total)
+        self.loss += 50 * tf.reduce_mean(total)
+
+        total = tf.zeros_like(degrees[:,0])
+        for b in B:
+            total += degrees[:, b]
+        total = tf.nn.relu(1 - total)
+        self.loss += 50 * tf.reduce_mean(total)
+
+        total = tf.nn.relu(degrees - 8)
+        self.loss += 50 * tf.reduce_mean(total)
+
         if FLAGS.VAE:
             self.log_lik -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))
             self.loss -= (1.0 / self.n_samples) * tf.reduce_mean(kl(self.z_mean, self.z_log_std))

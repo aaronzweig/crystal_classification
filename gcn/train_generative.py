@@ -22,14 +22,14 @@ import matplotlib.pyplot as plt
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('epochs', 2000, 'Number of epochs to train.')
-flags.DEFINE_integer('hidden1', 16, 'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2', 16, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('hidden3', 16, 'Number of units in hidden layer 3.')
-flags.DEFINE_integer('hidden4', 16, 'Number of units in hidden layer 4.')
-flags.DEFINE_integer('hidden5', 16, 'Number of units in hidden layer 5.')
-flags.DEFINE_integer('hidden6', 16, 'Number of units in hidden layer 5.')
-flags.DEFINE_integer('hidden7', 16, 'Number of units in hidden layer 5.')
-flags.DEFINE_integer('hidden8', 16, 'Number of units in hidden layer 5.')
+flags.DEFINE_integer('hidden1', 50, 'Number of units in hidden layer 1.')
+flags.DEFINE_integer('hidden2', 50, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('hidden3', 50, 'Number of units in hidden layer 3.')
+flags.DEFINE_integer('hidden4', 50, 'Number of units in hidden layer 4.')
+flags.DEFINE_integer('hidden5', 50, 'Number of units in hidden layer 5.')
+flags.DEFINE_integer('hidden6', 50, 'Number of units in hidden layer 5.')
+flags.DEFINE_integer('hidden7', 50, 'Number of units in hidden layer 5.')
+flags.DEFINE_integer('hidden8', 50, 'Number of units in hidden layer 5.')
 flags.DEFINE_float('dropout', 0.0, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_float('weight_decay', 5e-12, 'Weight for L2 loss on embedding matrix.')
@@ -117,7 +117,7 @@ for test_iter in range(FLAGS.test_count):
 
 
     feed_dict = construct_feed_dict(X_, A_, A_orig_, y_train_, train_mask_, placeholders)
-    #gens = sess.run(model.sample_fair(FLAGS.gen_count), feed_dict=feed_dict)
+    gens = sess.run(model.sample(FLAGS.gen_count), feed_dict=feed_dict)
     embs = sess.run(model.z_mean, feed_dict=feed_dict)
     embs = np.mean(embs, 1)
 
@@ -136,6 +136,7 @@ for test_iter in range(FLAGS.test_count):
 # print("density")
 # print(np.mean(densities))
 # print(stats.sem(densities))
+np.save("samples", gens)
 print("log_lik")
 print(np.mean(losses))
 print(stats.sem(losses))
