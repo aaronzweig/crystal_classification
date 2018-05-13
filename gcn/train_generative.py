@@ -57,11 +57,11 @@ feature_count = X.shape[2]
 model_func = GraphiteGenModel
 
 placeholders = {
-    'labels': tf.placeholder(tf.float32, shape = (None, y_train.shape[1])),
+    'labels': tf.placeholder(tf.float32, shape = (y_train.shape[1])),
     'labels_mask': tf.placeholder(tf.int32),
-    'adj_norm': tf.placeholder(tf.float32, shape = (None, vertex_count, vertex_count)),
-    'adj_orig': tf.placeholder(tf.float32, shape = (None, vertex_count, vertex_count)),
-    'features': tf.placeholder(tf.float32, shape=(None, vertex_count, feature_count)),
+    'adj_norm': tf.placeholder(tf.float32, shape = (vertex_count, vertex_count)),
+    'adj_orig': tf.placeholder(tf.float32, shape = (vertex_count, vertex_count)),
+    'features': tf.placeholder(tf.float32, shape=(vertex_count, feature_count)),
     'dropout': tf.placeholder_with_default(0., shape=(), name = "drop"),
     'num_features_nonzero': tf.placeholder(tf.int32, name = "help")
 }
@@ -93,8 +93,10 @@ sess = make_session()
 sess.run(tf.global_variables_initializer())
 
 for epoch in range(FLAGS.epochs):
+    size = X.shape[0]
+    index = epoch % size
 
-    train_loss, train_acc, train_log_lik = evaluate(X, A, A_orig, y_train, train_mask, placeholders, True)
+    train_loss, train_acc, train_log_lik = evaluate(X[index], A[index], A_orig[index], y_train[index], train_mask[index], placeholders, True)
 
     if FLAGS.verbose:
         print("Epoch:", '%04d' % (epoch + 1),"train_loss=", "{:.5f}".format(train_loss))
@@ -107,13 +109,9 @@ def plot_graph(A):
     plt.close()
 
 
-feed_dict = construct_feed_dict(X, A, A_orig, y_train, train_mask, placeholders)
-gens = sess.run(model.sample(FLAGS.gen_count), feed_dict=feed_dict)
-
-for i in range(1):
-    A = gens[i]
-    plot_graph(A)
+gens, bias = sess.run([model.sample(), model.decode_edges2.vars['bias']], feed_dict={})
+plot_graph(gens)
 
 
-np.save("samples", gens)
+#np.save("samples", gens)
 

@@ -96,14 +96,18 @@ def read_siemens():
 			edges = [n.strip('[]').strip().split(',') for n in edges]
 			edges = [(int(n[0]), int(n[1])) for n in edges]
 
-		A = np.zeros((250, 250))
-		for edge in edges:
-			v1 = edge[0]
-			v2 = edge[1]
-			A[v1, v2] = 1
-		X = np.identity(250)
-		feature = 1 if i >= 143 else 0
-		X = np.hstack((X, np.zeros((A.shape[0], 1)) + feature))
+		# A = np.zeros((250, 250))
+		# for edge in edges:
+		# 	v1 = edge[0]
+		# 	v2 = edge[1]
+		# 	A[v1, v2] = 1
+		# X = np.identity(250)
+		# feature = 1 if i >= 143 else 0
+		# X = np.hstack((X, np.zeros((A.shape[0], 1)) + feature))
+
+		G = nx.cycle_graph(10)
+		A = nx.to_numpy_matrix(G)
+		X = np.identity(10)
 
 		As.append(A)
 		Xs.append(X)
